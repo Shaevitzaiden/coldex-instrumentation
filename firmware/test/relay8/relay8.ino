@@ -14,8 +14,9 @@ const int relay8pin = 11;
 
 // Relay state management
 enum{RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
-// const float relay_switch_delay = 100.0; // ms
-// float relay_switching_timers[8] = {}; // ms
+const float relay_switch_delay = 100.0; // (ms), minimum switching delay
+unsigned long relay_switching_timers[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // (ms), timers in ms to prevent rapid relay switching
+
 
 void setup()
 {   
@@ -37,26 +38,52 @@ void setup()
 
  void loop()
 { 
-delay(1);
+  // State machine switch/case block
 }
 
 
-void openGate(const int relay)
+bool openGate(const int relay)
 // Assume that applying voltage opens relay (might need to change later)
 {
-  int pin = relayToPin(relay);
-  digitalWrite(pin, HIGH);
+  if (canSwitch(relay)){
+    int pin = relayToPin(relay);
+    digitalWrite(pin, HIGH);
+    relay_switching_timers[relay] = millis(); // Reset delay timer for switch
+    return true;
+  }
+  else {
+    return false;
+  }
 }
 
-void closeGate(const int relay)
+bool closeGate(const int relay)
 // Assume that low state closes relay (might need to change later)
 {
-  int pin = relayToPin(relay);
-  digitalWrite(pin, LOW);
+  if (canSwitch(relay)){
+    int pin = relayToPin(relay);
+    digitalWrite(pin, LOW);
+    relay_switching_timers[relay] = millis(); // Reset delay timer for switch
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool canSwitch(const int relay)
+// Check if switch is still on timer delay 
+{
+  float switch_delta =  millis() - relay_switching_timers[relay];
+  if (switch_delta > relay_switch_delay) {
+    return true; // Switch is off delay
+  }
+  else {
+    return false; // Still on delay
+  }
 }
 
 int relayToPin(int relay)
-// Convenience function to use relay names more broadly instead of directly associating with physical pin numbers
+// Mapping function to go from relay # to relay pin number
 {
   switch (relay){
     case RELAY1:
