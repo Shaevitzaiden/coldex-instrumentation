@@ -12,11 +12,15 @@ const int relay6pin = 9;
 const int relay7pin = 10;
 const int relay8pin = 11;
 
+// Relay state management
+enum{RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
+// const float relay_switch_delay = 100.0; // ms
+// float relay_switching_timers[8] = {}; // ms
 
 void setup()
 {   
   // Setup Serial
-  Serial.begin()
+  Serial.begin(serial_clock);
 
 
   // Set relay pins as output pins
@@ -33,18 +37,45 @@ void setup()
 
  void loop()
 { 
-
+delay(1);
 }
 
-void openGate(const int pin);
+
+void openGate(const int relay)
 // Assume that applying voltage opens relay (might need to change later)
 {
+  int pin = relayToPin(relay);
   digitalWrite(pin, HIGH);
-  delay()
 }
 
-void closeGate(const int pin);
+void closeGate(const int relay)
 // Assume that low state closes relay (might need to change later)
 {
+  int pin = relayToPin(relay);
   digitalWrite(pin, LOW);
+}
+
+int relayToPin(int relay)
+// Convenience function to use relay names more broadly instead of directly associating with physical pin numbers
+{
+  switch (relay){
+    case RELAY1:
+    return relay1pin;
+    case RELAY2:
+    return relay2pin;
+    case RELAY3:
+    return relay3pin;
+    case RELAY4:
+    return relay4pin;
+    case RELAY5:
+    return relay5pin;
+    case RELAY6:
+    return relay6pin;
+    case RELAY7:
+    return relay7pin;
+    case RELAY8:
+    return relay8pin;
+    default:
+    return 0;
+  }
 }
