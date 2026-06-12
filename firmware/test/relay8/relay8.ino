@@ -1,5 +1,18 @@
+// State machine states (may not be useful but here for now)
+enum{
+  INIT,
+  IDLE,
+  ACTIVE,
+  ERROR
+};
+int state = INIT; // Start in init state
+
 // Serial Comm Parameters
-const int serial_clock = 250000; // baud rate
+const int serial_clock = 250000;  // baud rate
+const byte numChars = 32;         // Max serial message length
+char receivedChars[numChars];     // Array to store serial msgs
+bool newData = false;             // flag to indicate the prescence of a new message
+
 
 
 // Define pins for associated relays
@@ -16,13 +29,16 @@ const int relay8pin = 11;
 enum{RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
 const float relay_switch_delay = 100.0; // (ms), minimum switching delay
 unsigned long relay_switching_timers[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // (ms), timers in ms to prevent rapid relay switching
+enum{OPEN, CLOSED}; // ---------------- change to match solenoid state and corresponding relay default (open or closed)
+int gate_state[8]; // This assumes all open (which means nothing physically yet)
+
+
 
 
 void setup()
 {   
   // Setup Serial
   Serial.begin(serial_clock);
-
 
   // Set relay pins as output pins
   pinMode(relay1pin, OUTPUT);
@@ -105,4 +121,102 @@ int relayToPin(int relay)
     default:
     return 0;
   }
+}
+
+// Function to accept and retain serial input
+void recvWithStartEndMarker() {
+  static boolean recvInProgress = false;
+  static byte ndx = 0;
+  char startMarker = '<';
+  char endMarker = '>';
+  char rc;
+
+  // Loop through the serial message until we receive an end character.
+  while (Serial.available() > 0 && newData == false) {
+    // Read one byte.
+    rc = Serial.read(); 
+    // If we're currently reading data:
+    if (recvInProgress == true) {
+      // If we haven't received an "end" char, 
+      if (rc != endMarker) {
+        // Add the char to our data array and increase the index.
+        receivedChars[ndx] = rc;
+        ndx++;
+        // If we've received more than the expected 32 bits, no we haven't.
+        if (ndx >= numChars) {
+          ndx = numChars - 1;
+        }
+      }
+      // Otherwise, we've received an "end" char.
+      else {
+        // Terminate the string
+        receivedChars[ndx] = '\0'; 
+        // Reset the flags for the next command
+        recvInProgress = false; 
+        ndx = 0;
+        newData = true;
+      }
+    }
+    // Otherwise, check if the character is our "start" char. If so, we should start reading data...
+    else if (rc == startMarker) {
+      // So set that flag appropriately.
+      recvInProgress = true;
+    }
+  }
+}
+
+// Function to process serial input
+void parseCommands() {
+  // If we have new data, process it
+  if (newData == true) {
+    // Reset the new data flag
+    newData = false;
+
+    // Create a flag to see if we've hit the delimiter
+    boolean hitDel = false;
+    
+    // Loop through the received input array, splitting it into the command 
+    for (int i=0; i<strlen(receivedChars); i++){
+      // Grab the next index of our received input array
+      char c = receivedChars[i];
+      // If we hit the delimieter, change our flag and skip the rest of that loop
+      if (c == delimiter){
+        hitDel = true;
+        continue;
+      }
+      // Update either the pin or command arrays accordingly
+      if (hitDel == true){
+        mypin[pIdx] = c;
+        pIdx ++;
+      }
+      else{
+        cmd[cIdx] = c;
+        cIdx ++;
+      }
+    }
+    // Terminate the arrays properly
+    cmd[cIdx] = '\0';
+    mypin[pIdx] = '\0';
+
+    // Convert the input to ints
+    int cmdResult = atoi(cmd);
+    int pinResult = atoi(mypin);
+    
+    // Manage the serial input accordingly
+    if (pinResult <= 69){
+      if (cmdResult == pinLow){
+        setPinLow(pinResult);
+      }
+      else if (cmdResult == pinHigh){
+        setPinHigh(pinResult);
+      }
+      else{
+        Serial.println("Unknown command received");
+      }
+    }
+    else{
+      Serial.println("Invalid pin received");
+    }
+  }
+
 }
