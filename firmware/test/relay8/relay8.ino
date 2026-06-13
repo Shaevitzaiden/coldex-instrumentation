@@ -1,18 +1,17 @@
 // State machine states (may not be useful but here for now)
-enum{
+enum {
   INIT,
   IDLE,
   ACTIVE,
   ERROR
 };
-int state = INIT; // Start in init state
+int state = INIT;  // Start in init state
 
-// Serial Comm Parameters
+// Serial Comms
 const int serial_clock = 250000;  // baud rate
 const byte numChars = 32;         // Max serial message length
 char receivedChars[numChars];     // Array to store serial msgs
 bool newData = false;             // flag to indicate the prescence of a new message
-
 
 
 // Define pins for associated relays
@@ -26,17 +25,25 @@ const int relay7pin = 10;
 const int relay8pin = 11;
 
 // Relay state management
-enum{RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
-const float relay_switch_delay = 100.0; // (ms), minimum switching delay
-unsigned long relay_switching_timers[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // (ms), timers in ms to prevent rapid relay switching
-enum{OPEN, CLOSED}; // ---------------- change to match solenoid state and corresponding relay default (open or closed)
-int gate_state[8]; // This assumes all open (which means nothing physically yet)
+enum { RELAY1,
+       RELAY2,
+       RELAY3,
+       RELAY4,
+       RELAY5,
+       RELAY6,
+       RELAY7,
+       RELAY8 };
+const int num_relays = 8;
+const float relay_switch_delay = 100.0;                                                // (ms), minimum switching delay
+unsigned long relay_switching_timers[8] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };  // (ms), timers in ms to prevent rapid relay switching
+enum { OPEN,
+       CLOSED };    // ---------------- change to match solenoid state and corresponding relay default (open or closed)
+int gate_state[8];  // This assumes all open (which means nothing physically yet)
 
 
 
 
-void setup()
-{   
+void setup() {
   // Setup Serial
   Serial.begin(serial_clock);
 
@@ -44,30 +51,35 @@ void setup()
   pinMode(relay1pin, OUTPUT);
   pinMode(relay2pin, OUTPUT);
   pinMode(relay3pin, OUTPUT);
-  pinMode(relay4pin, OUTPUT);  
+  pinMode(relay4pin, OUTPUT);
   pinMode(relay5pin, OUTPUT);
   pinMode(relay6pin, OUTPUT);
   pinMode(relay7pin, OUTPUT);
   pinMode(relay8pin, OUTPUT);
-
 }
 
- void loop()
-{ 
-  // State machine switch/case block
+void loop() {
+  recvWithStartEndMarker();
+  if (newData) {
+    bool action_completion = parseCommands();
+    if (action_completion) {
+      Serial.println("Action successful");
+    } else {
+      Serial.println("Action failure");
+    }
+  }
 }
 
 
 bool openGate(const int relay)
 // Assume that applying voltage opens relay (might need to change later)
 {
-  if (canSwitch(relay)){
+  if (canSwitch(relay)) {
     int pin = relayToPin(relay);
     digitalWrite(pin, HIGH);
-    relay_switching_timers[relay] = millis(); // Reset delay timer for switch
+    relay_switching_timers[relay] = millis();  // Reset delay timer for switch
     return true;
-  }
-  else {
+  } else {
     return false;
   }
 }
@@ -75,51 +87,49 @@ bool openGate(const int relay)
 bool closeGate(const int relay)
 // Assume that low state closes relay (might need to change later)
 {
-  if (canSwitch(relay)){
+  if (canSwitch(relay)) {
     int pin = relayToPin(relay);
     digitalWrite(pin, LOW);
-    relay_switching_timers[relay] = millis(); // Reset delay timer for switch
+    relay_switching_timers[relay] = millis();  // Reset delay timer for switch
     return true;
-  }
-  else {
+  } else {
     return false;
   }
 }
 
 bool canSwitch(const int relay)
-// Check if switch is still on timer delay 
+// Check if switch is still on timer delay
 {
-  float switch_delta =  millis() - relay_switching_timers[relay];
+  float switch_delta = millis() - relay_switching_timers[relay];
   if (switch_delta > relay_switch_delay) {
-    return true; // Switch is off delay
-  }
-  else {
-    return false; // Still on delay
+    return true;  // Switch is off delay
+  } else {
+    return false;  // Still on delay
   }
 }
 
 int relayToPin(int relay)
 // Mapping function to go from relay # to relay pin number
 {
-  switch (relay){
+  switch (relay) {
     case RELAY1:
-    return relay1pin;
+      return relay1pin;
     case RELAY2:
-    return relay2pin;
+      return relay2pin;
     case RELAY3:
-    return relay3pin;
+      return relay3pin;
     case RELAY4:
-    return relay4pin;
+      return relay4pin;
     case RELAY5:
-    return relay5pin;
+      return relay5pin;
     case RELAY6:
-    return relay6pin;
+      return relay6pin;
     case RELAY7:
-    return relay7pin;
+      return relay7pin;
     case RELAY8:
-    return relay8pin;
+      return relay8pin;
     default:
-    return 0;
+      return 0;
   }
 }
 
@@ -134,10 +144,10 @@ void recvWithStartEndMarker() {
   // Loop through the serial message until we receive an end character.
   while (Serial.available() > 0 && newData == false) {
     // Read one byte.
-    rc = Serial.read(); 
+    rc = Serial.read();
     // If we're currently reading data:
     if (recvInProgress == true) {
-      // If we haven't received an "end" char, 
+      // If we haven't received an "end" char,
       if (rc != endMarker) {
         // Add the char to our data array and increase the index.
         receivedChars[ndx] = rc;
@@ -150,9 +160,9 @@ void recvWithStartEndMarker() {
       // Otherwise, we've received an "end" char.
       else {
         // Terminate the string
-        receivedChars[ndx] = '\0'; 
+        receivedChars[ndx] = '\0';
         // Reset the flags for the next command
-        recvInProgress = false; 
+        recvInProgress = false;
         ndx = 0;
         newData = true;
       }
@@ -165,58 +175,40 @@ void recvWithStartEndMarker() {
   }
 }
 
-// Function to process serial input
-void parseCommands() {
-  // If we have new data, process it
-  if (newData == true) {
-    // Reset the new data flag
+// Breakdown msg and execute commands
+bool parseCommands() {
+  if (newData) {
+    // -------- Break down msg into parts --------
+    char* strtokIndx;
+
+    strtokIndx = strtok(receivedChars, ",");  // Get msb, used to pick item to act on (ex: select valve number)
+    int msb = atoi(strtokIndx);
+
+    strtokIndx = strtok(NULL, ",");  // Get lb, used to decide action on item (ex: open or close valve)
+    int lsb = atoi(strtokIndx);
+
+    // -------- Choose action to take from msg --------
+    bool action_success = false;
+    // Acting on a relay switch
+    if (msb < num_relays) {
+      if (lsb == 0) {
+        action_success = openGate(msb);
+      } else if (lsb == 1) {
+        action_success = closeGate(lsb);
+      } else {
+        action_success = false;
+      }
+    } 
+    else {
+      action_success = false;
+    }
     newData = false;
-
-    // Create a flag to see if we've hit the delimiter
-    boolean hitDel = false;
-    
-    // Loop through the received input array, splitting it into the command 
-    for (int i=0; i<strlen(receivedChars); i++){
-      // Grab the next index of our received input array
-      char c = receivedChars[i];
-      // If we hit the delimieter, change our flag and skip the rest of that loop
-      if (c == delimiter){
-        hitDel = true;
-        continue;
-      }
-      // Update either the pin or command arrays accordingly
-      if (hitDel == true){
-        mypin[pIdx] = c;
-        pIdx ++;
-      }
-      else{
-        cmd[cIdx] = c;
-        cIdx ++;
-      }
-    }
-    // Terminate the arrays properly
-    cmd[cIdx] = '\0';
-    mypin[pIdx] = '\0';
-
-    // Convert the input to ints
-    int cmdResult = atoi(cmd);
-    int pinResult = atoi(mypin);
-    
-    // Manage the serial input accordingly
-    if (pinResult <= 69){
-      if (cmdResult == pinLow){
-        setPinLow(pinResult);
-      }
-      else if (cmdResult == pinHigh){
-        setPinHigh(pinResult);
-      }
-      else{
-        Serial.println("Unknown command received");
-      }
-    }
-    else{
-      Serial.println("Invalid pin received");
-    }
+    return action_success;
   }
+}
 
+void clearInputBuffer() {
+  while (Serial.available() > 0) {
+    Serial.read();
+  }
 }
