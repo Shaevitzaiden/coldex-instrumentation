@@ -16,7 +16,7 @@ import atexit
 
 
 class SerialObject():
-    """My attempt at a semi generalized serial communications object"""
+    """My attempt at a semi generalized serial communications interface"""
     def __init__(self, close_port_on_exit=True):
         self.port = None
         self.baud_rate = None
