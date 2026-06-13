@@ -96,6 +96,7 @@ class ArduinoInterface():
         return data_string
     
     def validate_command(self, command):
+        """unimplemented"""
         return True
 
     def send_command(self, command):

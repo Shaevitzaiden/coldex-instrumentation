@@ -23,7 +23,8 @@ class SerialObject():
             "msg_size": 2, # bytes
             "start_character": None,
             "delimiter": None,
-            "end_character": None
+            "end_character": None,
+            "encoding": "UTF-8"
             }
         
         self.inbound_structure = {
@@ -36,8 +37,7 @@ class SerialObject():
         # Program exit behavior to close port
         if close_port_on_exit:
             atexit.register(self.disconnect)
-
-    
+ 
     def connect(self, port, baud_rate, timeout=1):
         """Open the serial connection with the specified port and baudrate"""
         self.port = port
@@ -54,10 +54,31 @@ class SerialObject():
         if self.ser is not None:
             self.ser.close()
             self.ser = None
+            print("Disconnected")
 
-    def send_command(self, cmd):
+    def write(self, cmd):
         """Build message based on outbound message structure"""
-        pass
+        msg_str = self.build_msg(cmd)
+        num_bytes_written = self.ser.write(msg_str)
+        return num_bytes_written
+
+    def build_msg(self, msg):
+        """Use outbound message structure to package message"""
+        packaged_msg = ""
+        
+        # Add start character if it is not None
+        if self.outbound_structure["start_character"] is not None:
+            packaged_msg +=  self.outbound_structure["start_character"]
+        
+        # Add main body of msg
+        packaged_msg += str(msg)
+
+        # Add end character if it is not None
+        if self.outbound_structure["end_character"] is not None:
+            packaged_msg += self.outbound_structure["end_character"]
+
+        print(packaged_msg)
+        return packaged_msg.encode(self.outbound_structure['encoding'])
 
     def configure_msg_structure(self, msg_dir, **kwargs):
         config_dict = self.inbound_structure if (msg_dir == 'inbound') else self.outbound_structure
@@ -68,17 +89,19 @@ class SerialObject():
             else:
                 raise Warning("Config structure key provided in invalid")
 
-
     def load_msg_structure(self, msg_dir):
         """Load message structure from config yaml file"""
         pass
 
 
 if __name__ == "__main__":
-    s = SerialObject(port="COM3", baud_rate=250000)
-    print(s.inbound_structure)
-    s.configure_msg_structure('inbound', msg_size=3)
-    print(s.inbound_structure)
+    s = SerialObject()
+    s.configure_msg_structure('outbound', msg_size=3, start_character='<', end_character='>')
+    
+    # try to connect to an arduino
+    test_msg = "1, 1"
+    s.connect("COM3", 250000)
+    
 
 
     

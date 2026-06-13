@@ -49,7 +49,8 @@ int gate_state[8];  // This assumes all open (which means nothing physically yet
 
 
 
-void setup() {
+void setup() 
+{
   // Setup Serial
   Serial.begin(serial_clock);
 
@@ -64,7 +65,8 @@ void setup() {
   pinMode(relay8pin, OUTPUT);
 }
 
-void loop() {
+void loop() 
+{
   recvWithStartEndMarker();
   if (newData) {
     bool action_completion = parseCommands();
@@ -140,7 +142,8 @@ int relayToPin(int relay)
 }
 
 // Function to accept and retain serial input
-void recvWithStartEndMarker() {
+void recvWithStartEndMarker() 
+{
   static boolean recvInProgress = false;
   static byte ndx = 0;
   char startMarker = '<';
@@ -182,7 +185,8 @@ void recvWithStartEndMarker() {
 }
 
 // Breakdown msg and execute commands
-bool parseCommands() {
+bool parseCommands() 
+{
   if (newData) {
     // -------- Break down msg into parts --------
     char* strtokIndx;
@@ -216,7 +220,8 @@ bool parseCommands() {
   }
 }
 
-void clearInputBuffer() {
+void clearInputBuffer() 
+{
   while (Serial.available() > 0) {
     Serial.read();
   }
