@@ -14,6 +14,7 @@ char receivedChars[numChars];     // Array to store serial msgs
 bool newData = false;             // flag to indicate the prescence of a new message
 
 // Command return messages
+#define FAILURE             0x00
 #define SUCCESS             0x01
 #define RELAY_DELAY_FAILURE 0x02
 #define INVALID_ADDR        0x03
@@ -63,17 +64,28 @@ void setup()
   pinMode(relay6pin, OUTPUT);
   pinMode(relay7pin, OUTPUT);
   pinMode(relay8pin, OUTPUT);
+
+  // Wait for startup message
+  pinMode(LED_BUILTIN, OUTPUT);
+  while (Serial.available() <= 0) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(500);
+  }
+
 }
 
 void loop() 
 {
   recvWithStartEndMarker();
   if (newData) {
+    
     bool action_completion = parseCommands();
     if (action_completion) {
-      Serial.println("Action successful");
+      Serial.println(SUCCESS);
     } else {
-      Serial.println("Action failure");
+      Serial.println(FAILURE);
     }
   }
 }
@@ -113,31 +125,6 @@ bool canSwitch(const int relay)
     return true;  // Switch is off delay
   } else {
     return false;  // Still on delay
-  }
-}
-
-int relayToPin(int relay)
-// Mapping function to go from relay # to relay pin number
-{
-  switch (relay) {
-    case RELAY1:
-      return relay1pin;
-    case RELAY2:
-      return relay2pin;
-    case RELAY3:
-      return relay3pin;
-    case RELAY4:
-      return relay4pin;
-    case RELAY5:
-      return relay5pin;
-    case RELAY6:
-      return relay6pin;
-    case RELAY7:
-      return relay7pin;
-    case RELAY8:
-      return relay8pin;
-    default:
-      return 0;
   }
 }
 
@@ -224,5 +211,30 @@ void clearInputBuffer()
 {
   while (Serial.available() > 0) {
     Serial.read();
+  }
+}
+
+int relayToPin(int relay)
+// Mapping function to go from relay # to relay pin number
+{
+  switch (relay) {
+    case RELAY1:
+      return relay1pin;
+    case RELAY2:
+      return relay2pin;
+    case RELAY3:
+      return relay3pin;
+    case RELAY4:
+      return relay4pin;
+    case RELAY5:
+      return relay5pin;
+    case RELAY6:
+      return relay6pin;
+    case RELAY7:
+      return relay7pin;
+    case RELAY8:
+      return relay8pin;
+    default:
+      return 0;
   }
 }
