@@ -13,6 +13,12 @@ const byte numChars = 32;         // Max serial message length
 char receivedChars[numChars];     // Array to store serial msgs
 bool newData = false;             // flag to indicate the prescence of a new message
 
+// Command return messages
+#define SUCCESS             0x01
+#define RELAY_DELAY_FAILURE 0x02
+#define INVALID_ADDR        0x03
+#define INVALID_CMD         0x04
+#define GATE_STATE_WARNING  0x05
 
 // Define pins for associated relays
 const int relay1pin = 4;
@@ -189,13 +195,16 @@ bool parseCommands() {
 
     // -------- Choose action to take from msg --------
     bool action_success = false;
+    // int cmd_return_code[2];
     // Acting on a relay switch
     if (msb < num_relays) {
       if (lsb == 0) {
         action_success = openGate(msb);
-      } else if (lsb == 1) {
+      } 
+      else if (lsb == 1) {
         action_success = closeGate(lsb);
-      } else {
+      } 
+      else {
         action_success = false;
       }
     } 
