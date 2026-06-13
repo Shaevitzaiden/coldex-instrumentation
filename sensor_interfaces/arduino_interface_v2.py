@@ -8,11 +8,15 @@ from serial.serialutil import SerialException
 import logging
 from logdecorator import log_on_start, log_on_end
 
+# Shutdown behavior
+import atexit
+
 
 class SerialObject():
-    def __init__(self, port, baud_rate):
-        self.port = port
-        self.baud_rate = baud_rate
+    """My attempt at a semi generalized serial communications object"""
+    def __init__(self, close_port_on_exit=True):
+        self.port = None
+        self.baud_rate = None
         self.ser = None 
         
         self.outbound_structure = {
@@ -29,11 +33,31 @@ class SerialObject():
             "end_character": None
         }
 
-    def connect(self, port, baud_rate):
+        # Program exit behavior to close port
+        if close_port_on_exit:
+            atexit.register(self.disconnect)
+
+    
+    def connect(self, port, baud_rate, timeout=1):
+        """Open the serial connection with the specified port and baudrate"""
         self.port = port
         self.baud_rate = baud_rate
-        self.ser = serial.Serial(port, baud_rate, timeout=1)
         
+        try:
+            self.ser = serial.Serial(port, baud_rate, timeout=timeout)
+            print("Successfully connected")
+        except SerialException:    
+            raise Warning(f"Could not connect to serial port {port} with baud rate {baud_rate}")
+            
+    def disconnect(self):
+        """Close the serial connection if it's open"""
+        if self.ser is not None:
+            self.ser.close()
+            self.ser = None
+
+    def send_command(self, cmd):
+        """Build message based on outbound message structure"""
+        pass
 
     def configure_msg_structure(self, msg_dir, **kwargs):
         config_dict = self.inbound_structure if (msg_dir == 'inbound') else self.outbound_structure
@@ -43,6 +67,7 @@ class SerialObject():
                 config_dict[key] = value
             else:
                 raise Warning("Config structure key provided in invalid")
+
 
     def load_msg_structure(self, msg_dir):
         """Load message structure from config yaml file"""
