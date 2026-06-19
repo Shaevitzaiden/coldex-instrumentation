@@ -22,65 +22,56 @@ bool newData = false;             // flag to indicate the prescence of a new mes
 #define GATE_STATE_WARNING  0x05
 
 // Define pins for associated relays
-const int relay1pin = 4;
-const int relay2pin = 5;
-const int relay3pin = 6;
-const int relay4pin = 7;
-const int relay5pin = 8;
-const int relay6pin = 9;
-const int relay7pin = 10;
-const int relay8pin = 11;
+// const int relay1_pins[8] = {4,  5,  6,  7,  8,  9,  10, 11};
+// const int relay2_pins[8] = {12, 13, 14, 15, 16, 17, 18, 19};
+// const int relay3_pins[8] = {20, 21, 22, 23, 24, 25, 26, 27};
+const int relay_pins[3][8] = {
+  {4,  5,  6,  7,  8,  9,  10, 11},
+  {12, 13, 14, 15, 16, 17, 18, 19},
+  {20, 21, 22, 23, 24, 25, 26, 27}
+  };
 
 // Relay state management
-enum { RELAY1,
-       RELAY2,
-       RELAY3,
-       RELAY4,
-       RELAY5,
-       RELAY6,
-       RELAY7,
-       RELAY8 };
-const int num_relays = 8;
-const float relay_switch_delay = 100.0;                                                // (ms), minimum switching delay
-unsigned long relay_switching_timers[8] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };  // (ms), timers in ms to prevent rapid relay switching
+const int num_relays = 3;
+const int num_switches = 8;
+const int num_relay_switches = num_relays * num_switches;
+const float relay_switch_delay = 100.0;              // (ms), minimum switching delay
+unsigned long relay_switching_timers[3][8] = {0.0};  // (ms), timers in ms to prevent rapid relay switching
 enum { OPEN,
        CLOSED };    // ---------------- change to match solenoid state and corresponding relay default (open or closed)
-int gate_state[8];  // This assumes all open (which means nothing physically yet)
-
-
+int gate_state[3][8];  // This assumes all open (which means nothing physically yet)
 
 
 void setup() 
 {
   // Setup Serial
   Serial.begin(serial_clock);
+  clearInputBuffer();
 
-  // Set relay pins as output pins
-  pinMode(relay1pin, OUTPUT);
-  pinMode(relay2pin, OUTPUT);
-  pinMode(relay3pin, OUTPUT);
-  pinMode(relay4pin, OUTPUT);
-  pinMode(relay5pin, OUTPUT);
-  pinMode(relay6pin, OUTPUT);
-  pinMode(relay7pin, OUTPUT);
-  pinMode(relay8pin, OUTPUT);
-
-  // Wait for startup message
-  pinMode(LED_BUILTIN, OUTPUT);
-  while (Serial.available() <= 0) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(500);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(500);
+  // Cycle through all pins connected to relays and set them to OUTPUT pins
+  for (int relay_module = 0; relay_module < 3; relay_module++) {
+    for (int relay_channel = 0; relay_channel < 8; relay_channel++) {
+      pinMode(relay_pins[relay_module][relay_channel], OUTPUT);
+    }
   }
+
+  // // Wait for startup message
+  // pinMode(LED_BUILTIN, OUTPUT);
+  // while (Serial.available() <= 0) {
+  //   digitalWrite(LED_BUILTIN, HIGH);
+  //   delay(500);
+  //   digitalWrite(LED_BUILTIN, LOW);
+  //   delay(500);
+  // }
 
 }
 
 void loop() 
 {
   recvWithStartEndMarker();
+  
   if (newData) {
-    
+  // Serial.println("New data: " + String(newData));
     bool action_completion = parseCommands();
     if (action_completion) {
       Serial.println(SUCCESS);
@@ -91,36 +82,23 @@ void loop()
 }
 
 
-bool openGate(const int relay)
-// Assume that applying voltage opens relay (might need to change later)
-{
-  if (canSwitch(relay)) {
-    int pin = relayToPin(relay);
-    digitalWrite(pin, HIGH);
-    relay_switching_timers[relay] = millis();  // Reset delay timer for switch
+bool changeRelaySwitchState(const int relay, const int relay_switch, int state) {
+    // If cannot switch return
+    if (!canSwitch(relay, relay_switch)) {
+      return false;
+    }
+    int pin = relay_pins[relay][relay_switch];
+    if (state == 0) { digitalWrite(pin, HIGH); }      // Close the gate (Depends on default setting)
+    else if (state == 1) { digitalWrite(pin, LOW); }  // Open the gate
+    else { return false; }                            // Invalid state switching request
+    relay_switching_timers[relay][relay_switch] = millis();  // Reset delay timer for switch
     return true;
-  } else {
-    return false;
-  }
 }
 
-bool closeGate(const int relay)
-// Assume that low state closes relay (might need to change later)
-{
-  if (canSwitch(relay)) {
-    int pin = relayToPin(relay);
-    digitalWrite(pin, LOW);
-    relay_switching_timers[relay] = millis();  // Reset delay timer for switch
-    return true;
-  } else {
-    return false;
-  }
-}
-
-bool canSwitch(const int relay)
+bool canSwitch(const int relay, const int relay_switch)
 // Check if switch is still on timer delay
 {
-  float switch_delta = millis() - relay_switching_timers[relay];
+  float switch_delta = millis() - relay_switching_timers[relay][relay_switch];
   if (switch_delta > relay_switch_delay) {
     return true;  // Switch is off delay
   } else {
@@ -136,7 +114,7 @@ void recvWithStartEndMarker()
   char startMarker = '<';
   char endMarker = '>';
   char rc;
-
+  
   // Loop through the serial message until we receive an end character.
   while (Serial.available() > 0 && newData == false) {
     // Read one byte.
@@ -179,25 +157,29 @@ bool parseCommands()
     char* strtokIndx;
 
     strtokIndx = strtok(receivedChars, ",");  // Get msb, used to pick item to act on (ex: select valve number)
+    if (strtokIndx == NULL) {
+    newData = false;
+    return false;
+    }
     int msb = atoi(strtokIndx);
 
     strtokIndx = strtok(NULL, ",");  // Get lb, used to decide action on item (ex: open or close valve)
+    if (strtokIndx == NULL) {
+    newData = false;
+    return false;
+    }
     int lsb = atoi(strtokIndx);
 
     // -------- Choose action to take from msg --------
     bool action_success = false;
     // int cmd_return_code[2];
+    
     // Acting on a relay switch
-    if (msb < num_relays) {
-      if (lsb == 0) {
-        action_success = openGate(msb);
-      } 
-      else if (lsb == 1) {
-        action_success = closeGate(lsb);
-      } 
-      else {
-        action_success = false;
-      }
+    if (msb < num_relay_switches) {
+      // Get relay number and switch number from msb
+      int relay = (int)floor( (float)msb / ((float)num_switches) );
+      int relay_switch = msb % num_switches;
+      action_success = changeRelaySwitchState(relay, relay_switch, lsb);
     } 
     else {
       action_success = false;
@@ -214,27 +196,3 @@ void clearInputBuffer()
   }
 }
 
-int relayToPin(int relay)
-// Mapping function to go from relay # to relay pin number
-{
-  switch (relay) {
-    case RELAY1:
-      return relay1pin;
-    case RELAY2:
-      return relay2pin;
-    case RELAY3:
-      return relay3pin;
-    case RELAY4:
-      return relay4pin;
-    case RELAY5:
-      return relay5pin;
-    case RELAY6:
-      return relay6pin;
-    case RELAY7:
-      return relay7pin;
-    case RELAY8:
-      return relay8pin;
-    default:
-      return 0;
-  }
-}

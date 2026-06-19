@@ -38,6 +38,9 @@ class SerialObject():
             "encoding": "UTF-8"
         }
 
+        # Dictionary to store command mappings
+        self.commands = {}
+
         # Program exit behavior to close port
         if close_port_on_exit:
             atexit.register(self.disconnect)
