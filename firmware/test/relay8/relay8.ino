@@ -22,13 +22,10 @@ bool newData = false;             // flag to indicate the prescence of a new mes
 #define GATE_STATE_WARNING  0x05
 
 // Define pins for associated relays
-// const int relay1_pins[8] = {4,  5,  6,  7,  8,  9,  10, 11};
-// const int relay2_pins[8] = {12, 13, 14, 15, 16, 17, 18, 19};
-// const int relay3_pins[8] = {20, 21, 22, 23, 24, 25, 26, 27};
 const int relay_pins[3][8] = {
-  {4,  5,  6,  7,  8,  9,  10, 11},
-  {12, 13, 14, 15, 16, 17, 18, 19},
-  {20, 21, 22, 23, 24, 25, 26, 27}
+  {4,  5,  6,  7,  8,  9,  10, 11}, // Relay module 1
+  {12, 13, 14, 15, 16, 17, 18, 19}, // Relay module 2
+  {20, 21, 22, 23, 24, 25, 26, 27}  // Relay module 3
   };
 
 // Relay state management
