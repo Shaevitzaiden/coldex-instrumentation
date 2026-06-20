@@ -51,16 +51,6 @@ void setup()
       pinMode(relay_pins[relay_module][relay_channel], OUTPUT);
     }
   }
-
-  // // Wait for startup message
-  // pinMode(LED_BUILTIN, OUTPUT);
-  // while (Serial.available() <= 0) {
-  //   digitalWrite(LED_BUILTIN, HIGH);
-  //   delay(500);
-  //   digitalWrite(LED_BUILTIN, LOW);
-  //   delay(500);
-  // }
-
 }
 
 void loop() 
