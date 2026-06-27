@@ -142,7 +142,6 @@ def get_serial_port_details():
         })
     return ports
 
-
 def serial_ports():
     """Return a simple list of active serial port device names (for compatibility)."""
     return [port["device"] for port in get_serial_port_details()]
@@ -190,6 +189,7 @@ def display_serial_ports_data():
                 print(f"    Location: {port['location']}")
             if port.get("hwid"):
                 print(f"    HWID: {port['hwid']}")
+
 
 if __name__ == "__main__":
     s = SerialObject()
