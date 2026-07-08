@@ -8,7 +8,7 @@ enum {
 int state = INIT;  // Start in init state
 
 // Serial Comms
-const int serial_clock = 250000;  // baud rate
+const int serial_clock = 9600;  // baud rate
 const byte numChars = 32;         // Max serial message length
 char receivedChars[numChars];     // Array to store serial msgs
 bool newData = false;             // flag to indicate the prescence of a new message
@@ -23,19 +23,20 @@ bool newData = false;             // flag to indicate the prescence of a new mes
 
 // Define pins for associated relays
 const int relay_pins[3][8] = {
-  {4,  5,  6,  7,  8,  9,  10, 11}, // Relay module 1
-  {12, 13, 14, 15, 16, 17, 18, 19}, // Relay module 2
-  {20, 21, 22, 23, 24, 25, 26, 27}  // Relay module 3
+  {22, 23, 24, 25, 26, 27, 28, 29}, // Relay module 1
+  {32, 33, 34, 35, 36, 37, 38, 39}, // Relay module 2
+  {42, 43, 44, 45, 46, 47, 48, 49}  // Relay module 3
   };
 
 // Relay state management
+const byte start_state = HIGH; // HIGH or LOW
 const int num_relays = 3;
 const int num_switches = 8;
 const int num_relay_switches = num_relays * num_switches;
 const float relay_switch_delay = 100.0;              // (ms), minimum switching delay
 unsigned long relay_switching_timers[3][8] = {0.0};  // (ms), timers in ms to prevent rapid relay switching
 enum { OPEN,
-       CLOSED };    // ---------------- change to match solenoid state and corresponding relay default (open or closed)
+       CLOSED };    // ---------------- change to<1 match solenoid state and corresponding relay default (open or closed)
 int gate_state[3][8];  // This assumes all open (which means nothing physically yet)
 
 
@@ -43,14 +44,19 @@ void setup()
 {
   // Setup Serial
   Serial.begin(serial_clock);
+  delay(1000);
+  Serial.println("Serial started");
   clearInputBuffer();
+  delay(1000);
 
   // Cycle through all pins connected to relays and set them to OUTPUT pins
   for (int relay_module = 0; relay_module < 3; relay_module++) {
     for (int relay_channel = 0; relay_channel < 8; relay_channel++) {
       pinMode(relay_pins[relay_module][relay_channel], OUTPUT);
+      digitalWrite(relay_pins[relay_module][relay_channel], start_state);
     }
   }
+  Serial.println("Setup Complete");
 }
 
 void loop() 
@@ -58,7 +64,7 @@ void loop()
   recvWithStartEndMarker();
   
   if (newData) {
-  // Serial.println("New data: " + String(newData));
+  Serial.println("New data: " + String(newData));
     bool action_completion = parseCommands();
     if (action_completion) {
       Serial.println(SUCCESS);
@@ -166,6 +172,7 @@ bool parseCommands()
       // Get relay number and switch number from msb
       int relay = (int)floor( (float)msb / ((float)num_switches) );
       int relay_switch = msb % num_switches;
+      Serial.print(relay); Serial.print(", "); Serial.println(relay_switch);
       action_success = changeRelaySwitchState(relay, relay_switch, lsb);
     } 
     else {
