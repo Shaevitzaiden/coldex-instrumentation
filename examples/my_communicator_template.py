@@ -1,12 +1,11 @@
-"""Template showing how to connect your serial layer to the GUI.
+"""Example integration point for your own serial abstraction.
 
-Copy this idea into run_app.py once your communicator is ready.
+This file is not imported by the GUI. It is meant as a pattern for integrating
+whatever serial communicator you have already written.
 """
-from __future__ import annotations
 
 from pathlib import Path
 import sys
-from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -17,48 +16,36 @@ from pneumatic_valve_panel.app import run_app
 
 
 class MySerialCommunicator:
-    """Replace this with your real firmware/software serial abstraction."""
-
     def __init__(self) -> None:
-        # Example only:
-        # self.device = MyDevice(port="COM4", baudrate=115200)
-        # self.device.connect()
+        # self.device = YourSerialDevice(...)
         pass
 
-    def set_valve_state(
+    def set_element_state(
         self,
         *,
-        valve_id: str,
-        is_open: bool,
-        command_id: Any = None,
-        metadata: Mapping[str, Any] | None = None,
+        element_id: str,
+        element_type: str,
+        is_active: bool,
+        relay_number: int | None = None,
+        metadata: dict | None = None,
     ) -> None:
-        """Called whenever a valve button is toggled.
+        if relay_number is None:
+            raise ValueError(f"{element_id} is missing a relay binding")
 
-        Parameters
-        ----------
-        valve_id:
-            Stable GUI/config id, such as "valve_01".
-        is_open:
-            True when the GUI requests open/on; False for closed/off.
-        command_id:
-            Optional value from YAML. In the included example config this is the
-            legacy Arduino digital pin, but you can replace it with your own
-            channel id or structured command.
-        metadata:
-            Extra YAML-defined data for this valve.
-        """
-        metadata = metadata or {}
+        # Replace this with your new packet abstraction.
+        # Example:
+        # packet = RelayPacket(relay=relay_number, enabled=is_active)
+        # self.device.send(packet)
         print(
-            "Send serial command here:",
-            {"valve_id": valve_id, "is_open": is_open, "command_id": command_id, "metadata": metadata},
+            f"Would send: element={element_id}, type={element_type}, "
+            f"relay={relay_number}, active={is_active}, metadata={metadata or {}}"
         )
-        # Example only:
-        # self.device.set_channel(command_id, state=is_open)
 
 
 if __name__ == "__main__":
-    run_app(
-        config_path=ROOT / "config" / "valve_panel.yaml",
-        communicator=MySerialCommunicator(),
+    raise SystemExit(
+        run_app(
+            config_path=ROOT / "config" / "valve_panel.yaml",
+            communicator=MySerialCommunicator(),
+        )
     )

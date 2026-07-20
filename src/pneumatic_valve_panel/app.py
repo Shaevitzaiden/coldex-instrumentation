@@ -2,28 +2,20 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from PyQt5 import QtWidgets
 
 from .main_window import MainWindow
-from .serial.protocols import ValveCommunicator
 
 
-def run_app(
-    config_path: str | Path,
-    communicator: Optional[ValveCommunicator] = None,
-) -> int:
+def run_app(config_path: str | Path, communicator: Any = None) -> int:
     """Create and run the Qt application.
 
-    Parameters
-    ----------
-    config_path:
-        YAML file describing the valve panel layout.
-    communicator:
-        Object that implements ``set_valve_state(...)``. If omitted, the GUI
-        still launches, but valve actions are logged as controller warnings.
+    ``communicator`` is user-provided. The GUI will call either
+    ``set_element_state(...)`` or the older ``set_valve_state(...)`` if present.
     """
+
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     window = MainWindow(config_path=Path(config_path), communicator=communicator)
     window.show()

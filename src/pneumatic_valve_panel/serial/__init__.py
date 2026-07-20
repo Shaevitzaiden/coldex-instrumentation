@@ -1,10 +1,4 @@
-from .protocols import ValveCommunicator
 from .demo_communicator import DemoCommunicator
-from .adapters import CallableCommunicatorAdapter, HighLowPinAdapter
+from .protocols import PneumaticCommunicator, ValveCommunicator
 
-__all__ = [
-    "ValveCommunicator",
-    "DemoCommunicator",
-    "CallableCommunicatorAdapter",
-    "HighLowPinAdapter",
-]
+__all__ = ["DemoCommunicator", "PneumaticCommunicator", "ValveCommunicator"]

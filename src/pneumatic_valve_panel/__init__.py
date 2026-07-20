@@ -1,18 +1,11 @@
-"""Modular PyQt5 pneumatic valve control panel.
+"""Scalable pneumatic valve panel editor/control GUI."""
 
-Import GUI objects from their concrete modules, for example:
 
-    from pneumatic_valve_panel.app import run_app
+def run_app(*args, **kwargs):
+    """Lazy wrapper so non-GUI modules can be imported without importing PyQt5."""
+    from .app import run_app as _run_app
 
-Keeping this package initializer lightweight makes non-GUI modules such as the
-YAML config loader importable even before PyQt5 is installed.
-"""
+    return _run_app(*args, **kwargs)
 
-from .models import AttachedLine, PanelConfig, PanelLine, ValveButtonConfig
 
-__all__ = [
-    "AttachedLine",
-    "PanelConfig",
-    "PanelLine",
-    "ValveButtonConfig",
-]
+__all__ = ["run_app"]

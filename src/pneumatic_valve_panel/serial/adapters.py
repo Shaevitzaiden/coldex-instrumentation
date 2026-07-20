@@ -1,55 +1,30 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping
+from typing import Any
 
 
-class CallableCommunicatorAdapter:
-    """Wrap a plain function so it can be used as a ValveCommunicator.
+class RelayMethodAdapter:
+    """Example adapter for a communicator with separate relay on/off methods.
 
-    The wrapped callable receives keyword arguments:
-    ``valve_id``, ``is_open``, ``command_id``, and ``metadata``.
+    Example expected wrapped API::
+
+        hardware.set_relay(relay_number=3, enabled=True)
+
+    You can delete or replace this file when integrating your own serial layer.
     """
 
-    def __init__(self, callback: Callable[..., None]) -> None:
-        self.callback = callback
+    def __init__(self, hardware: Any) -> None:
+        self.hardware = hardware
 
-    def set_valve_state(
+    def set_element_state(
         self,
         *,
-        valve_id: str,
-        is_open: bool,
-        command_id: Any = None,
-        metadata: Mapping[str, Any] | None = None,
+        element_id: str,
+        element_type: str,
+        is_active: bool,
+        relay_number: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        self.callback(
-            valve_id=valve_id,
-            is_open=is_open,
-            command_id=command_id,
-            metadata=metadata or {},
-        )
-
-
-class HighLowPinAdapter:
-    """Adapter for legacy-style objects with set_pin_high / set_pin_low methods.
-
-    This is included only as an example. In new code, prefer implementing
-    ``set_valve_state(...)`` directly on your serial communicator.
-    """
-
-    def __init__(self, target: Any) -> None:
-        self.target = target
-
-    def set_valve_state(
-        self,
-        *,
-        valve_id: str,
-        is_open: bool,
-        command_id: Any = None,
-        metadata: Mapping[str, Any] | None = None,
-    ) -> None:
-        if command_id is None:
-            raise ValueError(f"Valve {valve_id!r} does not define a command_id/pin.")
-        if is_open:
-            self.target.set_pin_high(command_id)
-        else:
-            self.target.set_pin_low(command_id)
+        if relay_number is None:
+            raise ValueError(f"Element {element_id!r} does not have a relay binding")
+        self.hardware.set_relay(relay_number=relay_number, enabled=is_active)

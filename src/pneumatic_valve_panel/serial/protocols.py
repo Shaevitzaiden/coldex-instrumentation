@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 
 class ValveCommunicator(Protocol):
-    """Minimal interface expected by the valve GUI.
+    """Compatibility protocol from the previous barebones version.
 
-    Your custom serial communicator can implement this method directly. The GUI
-    does not need to know whether ``command_id`` is an Arduino pin, a valve name,
-    a firmware channel, a structured command, or something else.
+    Existing user code can keep implementing this method. The new controller also
+    supports ``set_element_state(...)`` if your newer abstraction has a more
+    generic element-oriented API.
     """
 
     def set_valve_state(
@@ -17,6 +17,21 @@ class ValveCommunicator(Protocol):
         valve_id: str,
         is_open: bool,
         command_id: Any = None,
-        metadata: Mapping[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        ...
+
+
+class PneumaticCommunicator(Protocol):
+    """Preferred generic protocol for the editor version."""
+
+    def set_element_state(
+        self,
+        *,
+        element_id: str,
+        element_type: str,
+        is_active: bool,
+        relay_number: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         ...

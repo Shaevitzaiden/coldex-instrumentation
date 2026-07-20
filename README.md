@@ -1,37 +1,33 @@
-# Barebones Pneumatic Valve Panel
+# Pneumatic Valve Panel Editor
 
-This is a stripped-down, modular PyQt5 project that keeps only the useful part of the previous repo: a custom pneumatic valve control panel with round toggle buttons.
+This is a stripped-down, modular PyQt5 project focused on a custom pneumatic control panel. The GUI owns only layout editing and user interaction; your injected communicator owns all serial ports, packets, firmware protocol, retries, and hardware-specific behavior.
 
-The GUI does **not** own serial ports and does **not** know anything about Arduino, firmware packets, sensors, data logging, autonomous routines, or plotting. Button clicks are routed through a small controller into an injected communicator object.
-
-## What is included
+The core flow is:
 
 ```text
-pneumatic_valve_panel_barebones/
-  run_app.py
-  config/
-    valve_panel.yaml
-  examples/
-    my_communicator_template.py
-  src/pneumatic_valve_panel/
-    app.py
-    main_window.py
-    config_io.py
-    models.py
-    controllers/
-      valve_controller.py
-    serial/
-      protocols.py
-      demo_communicator.py
-      adapters.py
-    widgets/
-      circular_valve_button.py
-      valve_panel.py
+MainWindow
+  application shell, menus, toolbars, docks, file actions
+
+ValvePanelCanvas
+  scalable runtime/editor canvas, drawing, hit testing, selection, pan/zoom,
+  grid snapping, pipe creation, undo/redo, keyboard shortcuts
+
+PropertiesPanel
+  persistent selected-item editor dock
+
+ValidationPanel
+  relay binding validation and 24-relay browser dock
+
+PneumaticController
+  validates element IDs and forwards state requests to your communicator
+
+Your serial communicator
+  owns real hardware communication
 ```
 
-## Install and run
+The GUI never opens a serial port.
 
-From the repository root:
+## Run
 
 ```bash
 python -m venv .venv
@@ -44,14 +40,31 @@ pip install -r requirements.txt
 python run_app.py
 ```
 
-`run_app.py` uses `DemoCommunicator`, so it prints valve requests to the terminal instead of touching hardware.
+`run_app.py` uses `DemoCommunicator`, which only prints requests to the terminal.
 
-## The important abstraction
+## Communicator API
 
-Your serial layer only needs to provide this method:
+The preferred generic API is:
 
 ```python
-class MySerialCommunicator:
+class MyCommunicator:
+    def set_element_state(
+        self,
+        *,
+        element_id: str,
+        element_type: str,
+        is_active: bool,
+        relay_number: int | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        # Send your serial command here.
+        ...
+```
+
+The controller also supports the earlier barebones API:
+
+```python
+class MyCommunicator:
     def set_valve_state(
         self,
         *,
@@ -60,92 +73,193 @@ class MySerialCommunicator:
         command_id=None,
         metadata=None,
     ) -> None:
-        # Send whatever packet your firmware expects here.
-        pass
+        ...
 ```
 
-Then inject it into the app:
+If both methods exist, `set_element_state(...)` is used.
 
-```python
-from pathlib import Path
-from pneumatic_valve_panel.app import run_app
+## Runtime mode vs edit mode
 
-communicator = MySerialCommunicator()
-run_app(
-    config_path=Path("config/valve_panel.yaml"),
-    communicator=communicator,
-)
-```
-
-The GUI sends:
+The panel starts in **runtime mode**. In runtime mode:
 
 ```text
-valve_id      Stable config id, e.g. "valve_01"
-is_open       True for open/on, False for closed/off
-command_id    Optional per-button command field from the YAML config
-metadata      Optional per-button dictionary from the YAML config
+Click an enabled element       toggle it through the controller/communicator
+Close/Deactivate All           send deactivate commands for all enabled elements
+Layout editing controls        hidden
+Hardware commands              enabled
 ```
 
-In the included config, `command_id` is the legacy Arduino digital pin from the old project. You can replace it with any value your new communicator prefers.
+Select **Edit Layout** to enter editor mode. In editor mode:
 
-## Editing the valve layout
+```text
+Hardware toggle commands       disabled
+Close/Deactivate All           hidden/disabled
+Editor toolbar                 visible
+Properties dock                visible
+Validation / relay dock        visible
+```
 
-The valve panel is config-driven. The example `config/valve_panel.yaml` is a cleaned-up version of the previous 21-button panel.
+This keeps the normal control surface uncluttered and reduces accidental hardware activation while editing.
 
-Use the GUI toolbar/menu:
+## Editor controls
 
-1. Click **Edit Layout**.
-2. Drag valve buttons to new positions.
-3. Click **Save Layout** or press `Ctrl+S`.
+```text
+Ctrl+E            Toggle edit mode
+Ctrl+Z / Ctrl+Y   Undo / redo layout edits
+Ctrl+S            Save layout YAML
+Ctrl+Shift+S      Save layout as
+Ctrl+N            Add a new actuated element
+Ctrl+P            Add pipes by clicking endpoints
+Click             Select one element or pipe
+Ctrl+click        Add/remove item from selection
+Drag empty area   Box-select multiple items
+Drag selection    Move selected items
+Shift+drag        Constrain movement horizontally/vertically
+Mouse wheel       Zoom the editor canvas
+Middle-drag       Pan the editor canvas
+Space+left-drag   Pan the editor canvas
+R                 Rotate selected item(s) +90°
+Shift+R           Rotate selected item(s) -90°
+Delete/Backspace  Delete selected item(s)
+Arrow keys        Nudge selected item(s)
+Shift+arrow       Nudge selected item(s) by one grid step
+Esc               Cancel pipe mode or clear selection
+Ctrl+0            Fit canvas to window
+```
 
-The saved YAML stores each button center position.
+## Implemented feature set in this version
 
-## Config format
+This version implements the first group of suggested UX improvements:
 
-A minimal valve config looks like this:
+1. **Undo / redo** for layout edits.
+2. **Grid, snapping, and alignment tools** including show/hide grid, snap to grid, configurable spacing, align, distribute, arrow-key nudging, and constrained dragging.
+3. **Multi-select editing** through Ctrl+click and rubber-band selection.
+4. **Pan and zoom canvas** while in edit mode.
+5. **Persistent properties panel** for selected elements and pipes.
+6. **Relay binding validation** for missing, duplicate, and out-of-range relay assignments.
+7. **Hardware binding browser** showing all 24 relays and whether each is available, assigned, or duplicated.
+8. **Strict runtime/edit separation** so hardware commands are not triggered while editing.
+
+## Relay validation
+
+The Validation / Relay Browser dock checks:
+
+```text
+Relay binding is present or intentionally unbound
+Relay number is within 1-24
+Duplicate relay assignments
+Unused relays
+```
+
+The relay browser shows all 24 relay channels and which element(s), if any, use each one.
+
+## Scalable layout
+
+The layout is stored in a fixed design coordinate system:
 
 ```yaml
 panel:
-  title: My Valve Panel
-  width: 900
-  height: 500
-  button_radius: 56
-
-buttons:
-  - id: valve_01
-    label: "1"
-    center: [100, 120]
-    command_id: 2
-    initially_open: false
-    enabled: true
-    metadata:
-      manifold: A
-      port: 1
-
-lines:
-  - orientation: h
-    start: [50, 120]
-    length: 300
-    thickness: 16
+  design_width: 1180
+  design_height: 470
 ```
 
-Buttons can also define attached line segments that are drawn relative to the button center:
+`ValvePanelCanvas` scales that coordinate system to the current widget size. In runtime mode it automatically fits the panel to the window. In edit mode you can pan and zoom the design canvas.
+
+## Config structure
+
+The main file is:
+
+```text
+config/valve_panel.yaml
+```
+
+Important sections:
 
 ```yaml
-attached_lines:
-  - orientation: h
-    length: 80
-    thickness: 20
-  - orientation: v
-    length: -60
+panel:
+  title: Scalable Pneumatic Valve Panel Editor
+  design_width: 1180
+  design_height: 470
+  default_element_size: [56, 56]
+  background_color: "#f8f8f8"
+
+valve_types:
+  solenoid_2_way:
+    display_name: 2-Way Solenoid Valve
+    shape: circle
+  solenoid_3_way:
+    display_name: 3-Way Solenoid Valve
+    shape: diamond
+  selector_valve:
+    display_name: Selector / Routing Valve
+    shape: hexagon
+  pneumatic_actuator:
+    display_name: Pneumatic Actuator
+    shape: rounded_rect
+  pump_or_source:
+    display_name: Pump / Pressure Source
+    shape: triangle
+
+elements:
+  - id: valve_01
+    label: "1"
+    element_type: solenoid_2_way
+    center: [32, 195]
+    size: [56, 56]
+    rotation: 0
+    relay_number: 1
+    initially_active: false
+    enabled: true
+    metadata: {}
+
+pipes:
+  - id: pipe_001
+    start: [186, 100]
+    end: [186, 300]
     thickness: 20
 ```
 
-## Where to extend later
+## Shapes
 
-Useful extension points:
+The built-in shapes are:
 
-- Add additional windows in `main_window.py` or create new widgets under `widgets/`.
-- Add new non-GUI state/services under `controllers/`.
-- Keep serial/hardware code outside the widgets. The intended boundary is still `ValveController -> communicator.set_valve_state(...)`.
-- If your communicator has an existing API, wrap it with an adapter in `serial/adapters.py` rather than changing the GUI.
+```text
+circle
+ellipse
+rounded_rect
+capsule
+diamond
+triangle
+hexagon
+rectangle fallback for unknown names
+```
+
+Add semantic element types in YAML under `valve_types`; the Add/Edit Element dialog and properties panel will automatically show them.
+
+## Files to extend later
+
+```text
+src/pneumatic_valve_panel/main_window.py
+  Application shell, menus, toolbar, docks, dialogs. Add future windows here or
+  launch them from here.
+
+src/pneumatic_valve_panel/widgets/valve_panel_canvas.py
+  Scalable canvas, runtime toggles, editing interactions, undo/redo, grid,
+  snapping, selection, deletion, rotation, pan/zoom, and pipe creation.
+
+src/pneumatic_valve_panel/widgets/properties_panel.py
+  Persistent selected-item property editor.
+
+src/pneumatic_valve_panel/widgets/validation_panel.py
+  Layout validation and 24-relay browser.
+
+src/pneumatic_valve_panel/widgets/element_dialog.py
+  Add/edit dialog for actuated elements, including element type and relay binding.
+
+src/pneumatic_valve_panel/controllers/pneumatic_controller.py
+  The only layer that talks to the injected communicator.
+
+src/pneumatic_valve_panel/serial/
+  Demo communicator, protocols, and adapter examples. Replace this with your own
+  serial layer or add adapters here.
+```

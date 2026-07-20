@@ -1,12 +1,13 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pneumatic-valve-panel"
-version = "0.1.0"
-description = "Barebones modular PyQt5 pneumatic valve control panel"
+version = "0.2.0"
+description = "Scalable PyQt5 pneumatic valve panel editor/control GUI"
 requires-python = ">=3.10"
-dependencies = [
-    "PyQt5>=5.15",
-    "PyYAML>=6.0",
-]
+dependencies = ["PyQt5>=5.15", "PyYAML>=6.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,3 +1,3 @@
-from .valve_controller import ValveController
+from .pneumatic_controller import PneumaticController
 
-__all__ = ["ValveController"]
+__all__ = ["PneumaticController"]
