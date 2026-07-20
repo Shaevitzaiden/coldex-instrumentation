@@ -1,0 +1,12 @@
+[project]
+name = "pneumatic-valve-panel"
+version = "0.1.0"
+description = "Barebones modular PyQt5 pneumatic valve control panel"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt5>=5.15",
+    "PyYAML>=6.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

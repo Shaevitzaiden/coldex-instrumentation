@@ -1,10 +1,2 @@
-numpy==2.1.1
-pandas==2.2.2
-pyserial==3.5
-keyboard==0.13.5
-matplotlib==3.9.2
-logdecorator==2.4
-PyYAML==6.0.2
-readerwriterlock==1.0.9
-PyQt5==5.15.11
-psutil==7.0.0
+PyQt5>=5.15
+PyYAML>=6.0

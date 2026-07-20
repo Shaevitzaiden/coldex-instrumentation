@@ -1,0 +1,406 @@
+panel:
+  title: Barebones Pneumatic Valve Panel
+  width: 1180
+  height: 470
+  button_radius: 56
+buttons:
+- id: valve_01
+  label: '1'
+  center:
+  - 32
+  - 195
+  command_id: 2
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: h
+    length: -45
+    thickness: 20
+  - orientation: h
+    length: 70
+    thickness: 20
+  metadata:
+    legacy_button: Button 1
+    legacy_arduino_pin: 2
+- id: valve_02
+  label: '2'
+  center:
+  - 125
+  - 195
+  command_id: 3
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: h
+    length: -105
+    thickness: 20
+  - orientation: h
+    length: 70
+    thickness: 20
+  metadata:
+    legacy_button: Button 2
+    legacy_arduino_pin: 3
+- id: valve_03
+  label: '3'
+  center:
+  - 229
+  - 47
+  command_id: 4
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -51
+    thickness: 20
+  - orientation: v
+    length: 60
+    thickness: 20
+  metadata:
+    legacy_button: Button 3
+    legacy_arduino_pin: 4
+- id: valve_04
+  label: '4'
+  center:
+  - 317
+  - 48
+  command_id: 5
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -50
+    thickness: 20
+  - orientation: v
+    length: 60
+    thickness: 20
+  metadata:
+    legacy_button: Button 4
+    legacy_arduino_pin: 5
+- id: valve_05
+  label: '5'
+  center:
+  - 409
+  - 49
+  command_id: 6
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -50
+    thickness: 20
+  - orientation: v
+    length: 60
+    thickness: 20
+  metadata:
+    legacy_button: Button 5
+    legacy_arduino_pin: 6
+- id: valve_06
+  label: '6'
+  center:
+  - 222
+  - 344
+  command_id: 7
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -60
+    thickness: 20
+  - orientation: v
+    length: 57
+    thickness: 20
+  metadata:
+    legacy_button: Button 6
+    legacy_arduino_pin: 7
+- id: valve_07
+  label: '7'
+  center:
+  - 310
+  - 344
+  command_id: 8
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -60
+    thickness: 20
+  - orientation: v
+    length: 57
+    thickness: 20
+  metadata:
+    legacy_button: Button 7
+    legacy_arduino_pin: 8
+- id: valve_08
+  label: '8'
+  center:
+  - 401
+  - 344
+  command_id: 9
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -60
+    thickness: 20
+  - orientation: v
+    length: 57
+    thickness: 20
+  metadata:
+    legacy_button: Button 8
+    legacy_arduino_pin: 9
+- id: valve_09
+  label: '9'
+  center:
+  - 480
+  - 157
+  command_id: 10
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -50
+    thickness: 20
+  - orientation: v
+    length: 43
+    thickness: 20
+  metadata:
+    legacy_button: Button 9
+    legacy_arduino_pin: 10
+- id: valve_10
+  label: '10'
+  center:
+  - 480
+  - 237
+  command_id: 11
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -50
+    thickness: 20
+  - orientation: v
+    length: 55
+    thickness: 20
+  metadata:
+    legacy_button: Button 10
+    legacy_arduino_pin: 11
+- id: valve_11
+  label: '11'
+  center:
+  - 594
+  - 85
+  command_id: 12
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: 111
+    thickness: 20
+  metadata:
+    legacy_button: Button 11
+    legacy_arduino_pin: 12
+- id: valve_12
+  label: '12'
+  center:
+  - 696
+  - 85
+  command_id: 13
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: 111
+    thickness: 20
+  metadata:
+    legacy_button: Button 12
+    legacy_arduino_pin: 13
+- id: valve_13
+  label: '13'
+  center:
+  - 800
+  - 88
+  command_id: 14
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: 111
+    thickness: 20
+  metadata:
+    legacy_button: Button 13
+    legacy_arduino_pin: 14
+- id: valve_14
+  label: '14'
+  center:
+  - 870
+  - 238
+  command_id: 15
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -35
+    thickness: 20
+  - orientation: v
+    length: 60
+    thickness: 20
+  metadata:
+    legacy_button: Button 14
+    legacy_arduino_pin: 15
+- id: valve_15
+  label: '15'
+  center:
+  - 631
+  - 402
+  command_id: 16
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 15
+    legacy_arduino_pin: 16
+- id: valve_16
+  label: '16'
+  center:
+  - 711
+  - 402
+  command_id: 17
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 16
+    legacy_arduino_pin: 17
+- id: valve_17
+  label: '17'
+  center:
+  - 791
+  - 402
+  command_id: 18
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 17
+    legacy_arduino_pin: 18
+- id: valve_18
+  label: '18'
+  center:
+  - 871
+  - 403
+  command_id: 19
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 18
+    legacy_arduino_pin: 19
+- id: valve_19
+  label: '19'
+  center:
+  - 944
+  - 402
+  command_id: 20
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 19
+    legacy_arduino_pin: 20
+- id: valve_20
+  label: '20'
+  center:
+  - 1020
+  - 402
+  command_id: 21
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 20
+    legacy_arduino_pin: 21
+- id: valve_21
+  label: '21'
+  center:
+  - 1097
+  - 402
+  command_id: 22
+  radius: 56
+  initially_open: false
+  enabled: true
+  attached_lines:
+  - orientation: v
+    length: -126
+    thickness: 20
+  metadata:
+    legacy_button: Button 21
+    legacy_arduino_pin: 22
+lines:
+- orientation: v
+  start:
+  - 186
+  - 100
+  length: 200
+  thickness: 20
+- orientation: h
+  start:
+  - 192
+  - 100
+  length: 300
+  thickness: 20
+- orientation: h
+  start:
+  - 192
+  - 280
+  length: 300
+  thickness: 20
+- orientation: h
+  start:
+  - 471
+  - 185
+  length: 410
+  thickness: 20
+- orientation: h
+  start:
+  - 632
+  - 276
+  length: 476
+  thickness: 20
