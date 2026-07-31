@@ -77,6 +77,7 @@ class ActuatedElementConfig:
     relay_number: int | None = None
     initially_active: bool = False
     enabled: bool = True
+    locked: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -100,6 +101,7 @@ class ActuatedElementConfig:
             relay_number=relay_number,
             initially_active=bool(data.get("initially_active", data.get("initially_open", False))),
             enabled=bool(data.get("enabled", True)),
+            locked=bool(data.get("locked", False)),
             metadata=dict(data.get("metadata", {})),
         )
 
@@ -114,6 +116,7 @@ class ActuatedElementConfig:
             "relay_number": self.relay_number,
             "initially_active": self.initially_active,
             "enabled": self.enabled,
+            "locked": self.locked,
         }
         if self.metadata:
             data["metadata"] = dict(self.metadata)

@@ -37,6 +37,7 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         self.controller = controller
 
         self._edit_mode = False
+        self._runtime_interaction_enabled = True
         self._selected_items: set[SelectionItem] = set()
         self._primary_selection: SelectionItem | None = None
 
@@ -112,6 +113,13 @@ class ValvePanelCanvas(QtWidgets.QWidget):
 
     def is_edit_mode(self) -> bool:
         return self._edit_mode
+
+    def set_runtime_interaction_enabled(self, enabled: bool) -> None:
+        """Enable/disable hardware-affecting clicks without changing edit mode."""
+        self._runtime_interaction_enabled = bool(enabled)
+        if not self._runtime_interaction_enabled:
+            self.clear_selection()
+        self.update()
 
     def set_show_grid(self, enabled: bool) -> None:
         self.show_grid = bool(enabled)
@@ -424,32 +432,73 @@ class ValvePanelCanvas(QtWidgets.QWidget):
     # Runtime state commands
     # ------------------------------------------------------------------
     def set_all_elements_state(self, active: bool, *, send: bool = True) -> None:
-        if self._edit_mode:
-            self.message.emit("Runtime commands are disabled while editing the layout")
+        if self._edit_mode or not self._runtime_interaction_enabled:
+            self.message.emit("Runtime commands are currently disabled")
             return
+        skipped_locked = 0
         for element in self.panel_config.elements:
             if not element.enabled:
+                continue
+            if element.locked:
+                skipped_locked += 1
                 continue
             if send and self.controller is not None:
                 self.controller.set_element_state(element.id, active)
             element.initially_active = active
         self.state_changed.emit()
+        if skipped_locked:
+            self.message.emit(f"Set all unlocked elements {'active/open' if active else 'inactive/closed'}; skipped {skipped_locked} locked element(s)")
         self.update()
 
     def _toggle_element(self, element_id: str) -> None:
-        if self._edit_mode:
+        if self._edit_mode or not self._runtime_interaction_enabled:
+            self.message.emit("Runtime commands are currently disabled")
             return
         element = self.panel_config.element_by_id(element_id)
         if not element.enabled:
             self.message.emit(f"{element.id} is disabled")
             return
+        if element.locked:
+            self.message.emit(f"{element.id} is locked; unlock it before changing state")
+            return
         new_state = not element.initially_active
+        self._set_element_runtime_state(element, new_state)
+
+    def _set_element_runtime_state(self, element: ActuatedElementConfig, active: bool) -> None:
         if self.controller is not None:
-            self.controller.set_element_state(element.id, new_state)
-        element.initially_active = new_state
+            self.controller.set_element_state(element.id, active)
+        element.initially_active = active
         self.state_changed.emit()
-        self.message.emit(f"{element.id} -> {'ACTIVE/OPEN' if new_state else 'INACTIVE/CLOSED'}")
+        self.message.emit(f"{element.id} -> {'ACTIVE/OPEN' if active else 'INACTIVE/CLOSED'}")
         self.update()
+
+    def _set_element_locked(self, element: ActuatedElementConfig, locked: bool) -> None:
+        element.locked = bool(locked)
+        self.state_changed.emit()
+        self.message.emit(f"{element.id} {'locked' if element.locked else 'unlocked'}")
+        self.update()
+
+    def _show_runtime_element_menu(self, element_id: str, global_pos: QtCore.QPoint) -> None:
+        element = self.panel_config.element_by_id(element_id)
+        menu = QtWidgets.QMenu(self)
+
+        state_text = "Deactivate/Close" if element.initially_active else "Activate/Open"
+        toggle_action = menu.addAction(f"Toggle State ({state_text})")
+        toggle_action.setEnabled(self._runtime_interaction_enabled and element.enabled and not element.locked)
+
+        lock_label = "Unlock Valve State" if element.locked else "Lock Valve State"
+        lock_action = menu.addAction(lock_label)
+
+        if not element.enabled:
+            toggle_action.setToolTip("This element is disabled")
+        elif element.locked:
+            toggle_action.setToolTip("Unlock this element before changing state")
+
+        chosen = menu.exec_(global_pos)
+        if chosen == toggle_action:
+            self._toggle_element(element.id)
+        elif chosen == lock_action:
+            self._set_element_locked(element, not element.locked)
 
     # ------------------------------------------------------------------
     # Pan / zoom / coordinate transforms
@@ -502,7 +551,15 @@ class ValvePanelCanvas(QtWidgets.QWidget):
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802 - Qt API name
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QtGui.QColor(235, 235, 235))
+        # Runtime mode visually extends the panel background through any tiny
+        # aspect-ratio remainder. Edit mode keeps the gray surround so the
+        # actual saved scene bounds remain obvious while arranging objects.
+        outer_color = (
+            QtGui.QColor(235, 235, 235)
+            if self._edit_mode
+            else QtGui.QColor(self.panel_config.background_color)
+        )
+        painter.fillRect(self.rect(), outer_color)
 
         offset, scale = self._scene_transform_parts()
         painter.translate(offset)
@@ -551,15 +608,21 @@ class ValvePanelCanvas(QtWidgets.QWidget):
 
         if event.button() == QtCore.Qt.RightButton:
             if hit_kind == "element" and hit_id is not None:
-                self.select_element(hit_id)
-                self.edit_requested.emit("element", hit_id)
+                if self._edit_mode:
+                    self.select_element(hit_id)
+                    self.edit_requested.emit("element", hit_id)
+                else:
+                    if self._runtime_interaction_enabled:
+                        self._show_runtime_element_menu(hit_id, event.globalPos())
                 event.accept()
                 return
             if hit_kind == "pipe" and hit_id is not None:
-                self.select_pipe(hit_id)
-                self.edit_requested.emit("pipe", hit_id)
-                event.accept()
-                return
+                if self._edit_mode:
+                    self.select_pipe(hit_id)
+                    self.edit_requested.emit("pipe", hit_id)
+                    event.accept()
+                    return
+                return super().mousePressEvent(event)
             if self._edit_mode:
                 self.clear_selection()
                 event.accept()
@@ -572,6 +635,9 @@ class ValvePanelCanvas(QtWidgets.QWidget):
             return
 
         if not self._edit_mode:
+            if not self._runtime_interaction_enabled:
+                event.accept()
+                return
             if hit_kind == "element" and hit_id is not None:
                 self._toggle_element(hit_id)
                 event.accept()
@@ -684,16 +750,22 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         return super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:  # noqa: N802 - Qt API name
+        # Double-click is an editing affordance only. In runtime mode, do not
+        # create a selection or show the dashed selection outline.
+        if not self._edit_mode:
+            if self._selected_items:
+                self.clear_selection()
+            event.accept()
+            return
+
         design_pos = self.widget_to_design(QtCore.QPointF(event.pos()))
         hit_kind, hit_id = self._hit_test((design_pos.x(), design_pos.y()))
         if hit_kind == "element" and hit_id is not None:
             self.select_element(hit_id)
-            if self._edit_mode:
-                self.edit_requested.emit("element", hit_id)
+            self.edit_requested.emit("element", hit_id)
         elif hit_kind == "pipe" and hit_id is not None:
             self.select_pipe(hit_id)
-            if self._edit_mode:
-                self.edit_requested.emit("pipe", hit_id)
+            self.edit_requested.emit("pipe", hit_id)
         event.accept()
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:  # noqa: N802 - Qt API name
@@ -869,6 +941,9 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         label_rect = QtCore.QRectF(element.center[0] - element.size[0] / 2.0, element.center[1] - element.size[1] / 2.0, element.size[0], element.size[1])
         painter.drawText(label_rect, QtCore.Qt.AlignCenter, element.label)
 
+        if element.locked:
+            self._draw_lock_icon(painter, element)
+
         if self._edit_mode:
             relay_text = f"R{element.relay_number}" if element.relay_number is not None else "R?"
             painter.setPen(QtGui.QColor(80, 80, 80))
@@ -916,8 +991,57 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         if not element.enabled:
             return QtGui.QColor(180, 180, 180)
         if element.initially_active:
-            return QtGui.QColor(241, 108, 107)
-        return QtGui.QColor(255, 193, 7)
+            color = QtGui.QColor(241, 108, 107)
+        else:
+            color = QtGui.QColor(255, 193, 7)
+        if element.locked:
+            return self._muted_color(color)
+        return color
+
+    def _muted_color(self, color: QtGui.QColor) -> QtGui.QColor:
+        gray = QtGui.QColor(178, 178, 178)
+        mix = 0.35
+        return QtGui.QColor(
+            int(color.red() * (1.0 - mix) + gray.red() * mix),
+            int(color.green() * (1.0 - mix) + gray.green() * mix),
+            int(color.blue() * (1.0 - mix) + gray.blue() * mix),
+        )
+
+    def _draw_lock_icon(self, painter: QtGui.QPainter, element: ActuatedElementConfig) -> None:
+        width, height = element.size
+        icon_w = max(10.0, min(width, height) * 0.22)
+        icon_h = icon_w * 0.82
+        x = element.center[0] + width / 2.0 - icon_w - 5.0
+        y = element.center[1] - height / 2.0 + 5.0
+
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setPen(QtGui.QPen(QtGui.QColor(40, 40, 40), 1.4))
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(245, 245, 245, 210)))
+
+        body = QtCore.QRectF(x, y + icon_h * 0.42, icon_w, icon_h * 0.58)
+        painter.drawRoundedRect(body, 1.8, 1.8)
+
+        shackle = QtGui.QPainterPath()
+        shackle.moveTo(x + icon_w * 0.25, y + icon_h * 0.48)
+        shackle.lineTo(x + icon_w * 0.25, y + icon_h * 0.30)
+        shackle.cubicTo(
+            x + icon_w * 0.25, y + icon_h * 0.05,
+            x + icon_w * 0.75, y + icon_h * 0.05,
+            x + icon_w * 0.75, y + icon_h * 0.30,
+        )
+        shackle.lineTo(x + icon_w * 0.75, y + icon_h * 0.48)
+        painter.setBrush(QtCore.Qt.NoBrush)
+        painter.drawPath(shackle)
+
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(40, 40, 40)))
+        keyhole_center = QtCore.QPointF(x + icon_w * 0.5, y + icon_h * 0.70)
+        painter.drawEllipse(keyhole_center, icon_w * 0.08, icon_w * 0.08)
+        painter.drawLine(
+            QtCore.QPointF(keyhole_center.x(), keyhole_center.y() + icon_w * 0.06),
+            QtCore.QPointF(keyhole_center.x(), keyhole_center.y() + icon_w * 0.18),
+        )
+        painter.restore()
 
     # ------------------------------------------------------------------
     # Interaction helpers

@@ -4,10 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pneumatic-valve-panel"
-version = "0.2.0"
-description = "Scalable PyQt5 pneumatic valve panel editor/control GUI"
+version = "0.3.0"
+description = "Tiled PyQt5 pneumatic control, live sensor dashboard, and session recorder"
 requires-python = ">=3.10"
-dependencies = ["PyQt5>=5.15", "PyYAML>=6.0"]
+dependencies = [
+    "PyQt5>=5.15",
+    "PyYAML>=6.0",
+    "pyqtgraph>=0.13",
+    "numpy>=1.23",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

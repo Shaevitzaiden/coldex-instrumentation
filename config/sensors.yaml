@@ -1,0 +1,26 @@
+sensors:
+  pressure_supply:
+    label: Supply Pressure
+    unit: kPa
+    expected_sampling_hz: 20
+    enabled: true
+    default_log: true
+    description: Example pressure channel from the shared microcontroller stream.
+  pressure_output:
+    label: Output Pressure
+    unit: kPa
+    expected_sampling_hz: 20
+    enabled: true
+    default_log: true
+  flow_rate:
+    label: Flow Rate
+    unit: L/min
+    expected_sampling_hz: 20
+    enabled: true
+    default_log: false
+  temperature:
+    label: Controller Temperature
+    unit: °C
+    expected_sampling_hz: 20
+    enabled: true
+    default_log: false

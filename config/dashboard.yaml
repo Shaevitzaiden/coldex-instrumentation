@@ -1,0 +1,52 @@
+schema_version: 1
+dashboard:
+  rows: 2
+  columns: 2
+  row_stretches: [3, 1]
+  column_stretches: [3, 2]
+  dock_layout_version: fixed_grid_v1
+  tiles:
+    - id: valve_panel_main
+      type: valve_panel
+      title: Pneumatic Valve Panel
+      row: 0
+      column: 0
+      row_span: 1
+      column_span: 1
+      removable: false
+      config: {}
+
+    - id: plot_main
+      type: live_plot
+      title: Live Sensor Plot
+      row: 0
+      column: 1
+      row_span: 1
+      column_span: 1
+      removable: true
+      config:
+        channels:
+          - pressure_supply
+          - pressure_output
+          - flow_rate
+        history_seconds: 30
+
+    - id: log_main
+      type: log
+      title: System Log
+      row: 1
+      column: 0
+      row_span: 1
+      column_span: 1
+      removable: true
+      config: {}
+
+    - id: recording_session
+      type: recording
+      title: Session Recording
+      row: 1
+      column: 1
+      row_span: 1
+      column_span: 1
+      removable: false
+      config: {}

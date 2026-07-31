@@ -1,6 +1,8 @@
+
+*.pyc
+*.pyd
+*.pyo
+.DS_Store
 .venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.DS_Store
+recorded_sessions/

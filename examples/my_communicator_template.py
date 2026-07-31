@@ -1,23 +1,17 @@
-"""Example integration point for your own serial abstraction.
+from __future__ import annotations
 
-This file is not imported by the GUI. It is meant as a pattern for integrating
-whatever serial communicator you have already written.
-"""
-
-from pathlib import Path
-import sys
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from pneumatic_valve_panel.app import run_app
+from typing import Any
 
 
-class MySerialCommunicator:
-    def __init__(self) -> None:
-        # self.device = YourSerialDevice(...)
+class MyCommunicator:
+    """Template for integrating an existing full-duplex serial abstraction."""
+
+    def connect(self) -> None:
+        """Open/configure the serial device. Called in the hardware thread."""
+        pass
+
+    def disconnect(self) -> None:
+        """Close the serial device. Called during graceful shutdown."""
         pass
 
     def set_element_state(
@@ -27,25 +21,29 @@ class MySerialCommunicator:
         element_type: str,
         is_active: bool,
         relay_number: int | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
+        """Format and send your relay command here."""
         if relay_number is None:
-            raise ValueError(f"{element_id} is missing a relay binding")
+            raise ValueError(f"{element_id} has no relay binding")
+        # self.serial_protocol.set_relay(relay_number, is_active)
 
-        # Replace this with your new packet abstraction.
-        # Example:
-        # packet = RelayPacket(relay=relay_number, enabled=is_active)
-        # self.device.send(packet)
-        print(
-            f"Would send: element={element_id}, type={element_type}, "
-            f"relay={relay_number}, active={is_active}, metadata={metadata or {}}"
-        )
+    def read_available_packets(self, timeout_s: float = 0.01) -> list[dict[str, Any]]:
+        """Return all currently available parsed incoming messages.
 
-
-if __name__ == "__main__":
-    raise SystemExit(
-        run_app(
-            config_path=ROOT / "config" / "valve_panel.yaml",
-            communicator=MySerialCommunicator(),
-        )
-    )
+        Prefer one dictionary containing all simultaneously sampled channels so
+        the application writes the same timestamp to every channel file.
+        """
+        # packet = self.serial_protocol.read_packet(timeout_s)
+        # if packet is None:
+        #     return []
+        # return [{
+        #     "type": "sensor_frame",
+        #     "sequence": packet.sequence,
+        #     "device_timestamp": packet.timestamp,
+        #     "values": {
+        #         "pressure_supply": packet.pressure_supply,
+        #         "flow_rate": packet.flow_rate,
+        #     },
+        # }]
+        return []

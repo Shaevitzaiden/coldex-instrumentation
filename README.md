@@ -1,265 +1,131 @@
-# Pneumatic Valve Panel Editor
+# Pneumatic Control Dashboard
 
-This is a stripped-down, modular PyQt5 project focused on a custom pneumatic control panel. The GUI owns only layout editing and user interaction; your injected communicator owns all serial ports, packets, firmware protocol, retries, and hardware-specific behavior.
+A modular PyQt5 application for pneumatic relay control, synchronized live-sensor display, terminal-style logging, and recoverable sensor-recording sessions.
 
-The core flow is:
+## v6.7 layout rollback
+
+The operational dashboard no longer uses native Qt docking. Native docks proved too unpredictable for a four-panel control interface, particularly when nested, resized, or rearranged.
+
+The application now uses a stable grid-backed dashboard:
 
 ```text
-MainWindow
-  application shell, menus, toolbars, docks, file actions
-
-ValvePanelCanvas
-  scalable runtime/editor canvas, drawing, hit testing, selection, pan/zoom,
-  grid snapping, pipe creation, undo/redo, keyboard shortcuts
-
-PropertiesPanel
-  persistent selected-item editor dock
-
-ValidationPanel
-  relay binding validation and 24-relay browser dock
-
-PneumaticController
-  validates element IDs and forwards state requests to your communicator
-
-Your serial communicator
-  owns real hardware communication
+┌───────────────────────────────┬─────────────────────┐
+│ Pneumatic Valve Panel         │ Live Sensor Plot    │
+│ approximately 60% width       │ approximately 40%   │
+│ approximately 75% height      │ matching height     │
+├───────────────────────────────┼─────────────────────┤
+│ System Log                    │ Session Recording   │
+│ approximately 25% height      │ approximately 25%   │
+└───────────────────────────────┴─────────────────────┘
 ```
 
-The GUI never opens a serial port.
+The default proportions are stored in `config/dashboard.yaml` as:
 
-## Run
+```yaml
+row_stretches: [3, 1]
+column_stretches: [3, 2]
+```
+
+In normal operation, panel positions are fixed. **Edit Dashboard Layout** (`Ctrl+D`) reveals configure/remove controls on panel headers. Tile geometry is changed explicitly through row, column, row-span, and column-span values, so panels cannot disappear beneath one another or produce unstable splitter trees.
+
+The valve-layout editor remains separate from dashboard editing. Valve controls and valve-editing actions remain attached to the valve panel itself.
+
+## Default valve canvas
+
+The valve design canvas is now `900 × 550`, matching the aspect ratio of the default upper-left dashboard region more closely. Existing valve and pipe coordinates were rescaled so the default runtime zoom uses the available vertical space rather than letterboxing the previous `1180 × 470` design.
+
+## Features retained
+
+- Configurable pneumatic valve/actuator panel with relay bindings 1–24.
+- Runtime right-click actions for toggle and lock/unlock.
+- Locked-state color muting and lock icon.
+- Valve-layout undo/redo, selection, add/edit/delete, rotation, pipes, snapping, and alignment.
+- Valve-specific runtime and editing controls embedded in the valve panel.
+- One threaded hardware service that owns the injected communicator.
+- Thread-safe relay command queue.
+- Synchronized multi-channel sensor frames.
+- Buffered live plots using `pyqtgraph`, with a simple fallback renderer.
+- Terminal-style application and hardware log stream.
+- Selectable per-sensor recording.
+- Separate CSV and metadata files per sensor.
+- Session folders named by date/time.
+- Periodic autosave, manual save, non-terminating snapshots, and save-and-close.
+- Final log and sensor-data flush during normal shutdown.
+
+## Running
 
 ```bash
 python -m venv .venv
-# Windows:
 .venv\Scripts\activate
-# macOS/Linux:
-# source .venv/bin/activate
-
 pip install -r requirements.txt
 python run_app.py
 ```
 
-`run_app.py` uses `DemoCommunicator`, which only prints requests to the terminal.
+The included `DemoCommunicator` generates sample data and prints relay requests without requiring hardware.
 
-## Communicator API
+## Main configuration files
 
-The preferred generic API is:
+- `config/valve_panel.yaml` — valve types, valve elements, pipes, positions, relay bindings, and initial states.
+- `config/dashboard.yaml` — fixed-grid panel placement and row/column proportions.
+- `config/sensors.yaml` — sensor labels, units, expected sampling frequencies, and default logging choices.
+
+## Dashboard editing
+
+1. Select **Edit Dashboard Layout** or press `Ctrl+D`.
+2. Use the gear button on a panel to change its row, column, or span.
+3. Add optional plot, latest-value, or log panels from the Dashboard menu.
+4. Remove optional panels using their edit-mode remove button.
+5. Save with **Save Dashboard Layout**.
+6. Use **Reset Dashboard Layout** to restore the packaged 60/40 by 75/25 four-panel arrangement.
+
+The valve panel and Session Recording panel are non-removable because they own singleton application widgets. Plot and log panels may be removed or added.
+
+## Hardware communicator boundary
+
+The preferred outgoing method is:
 
 ```python
-class MyCommunicator:
-    def set_element_state(
-        self,
-        *,
-        element_id: str,
-        element_type: str,
-        is_active: bool,
-        relay_number: int | None = None,
-        metadata: dict | None = None,
-    ) -> None:
-        # Send your serial command here.
-        ...
+def set_element_state(
+    self,
+    *,
+    element_id: str,
+    element_type: str,
+    is_active: bool,
+    relay_number: int | None = None,
+    metadata: dict | None = None,
+) -> None:
+    ...
 ```
 
-The controller also supports the earlier barebones API:
+The hardware worker also accepts incoming packets from methods such as `read_packet()`, `read_message()`, `receive()`, or `poll()`.
+
+A synchronized sensor frame should resemble:
 
 ```python
-class MyCommunicator:
-    def set_valve_state(
-        self,
-        *,
-        valve_id: str,
-        is_open: bool,
-        command_id=None,
-        metadata=None,
-    ) -> None:
-        ...
+{
+    "type": "sensor_frame",
+    "sequence": 123,
+    "device_timestamp": 4.250,
+    "values": {
+        "pressure_supply": 551.2,
+        "pressure_output": 125.8,
+        "flow_rate": 2.1,
+    },
+}
 ```
 
-If both methods exist, `set_element_state(...)` is used.
+Every channel in one frame receives the same host UTC timestamp and elapsed time.
 
-## Runtime mode vs edit mode
-
-The panel starts in **runtime mode**. In runtime mode:
+## Recorded session structure
 
 ```text
-Click an enabled element       toggle it through the controller/communicator
-Close/Deactivate All           send deactivate commands for all enabled elements
-Layout editing controls        hidden
-Hardware commands              enabled
+recorded_sessions/
+└── 2026-07-31_10-30-00/
+    ├── system_log.csv
+    ├── session_manifest.yaml
+    ├── pressure_supply__Supply_Pressure.csv
+    ├── pressure_supply__Supply_Pressure_metadata.yaml
+    └── snapshots/
 ```
 
-Select **Edit Layout** to enter editor mode. In editor mode:
-
-```text
-Hardware toggle commands       disabled
-Close/Deactivate All           hidden/disabled
-Editor toolbar                 visible
-Properties dock                visible
-Validation / relay dock        visible
-```
-
-This keeps the normal control surface uncluttered and reduces accidental hardware activation while editing.
-
-## Editor controls
-
-```text
-Ctrl+E            Toggle edit mode
-Ctrl+Z / Ctrl+Y   Undo / redo layout edits
-Ctrl+S            Save layout YAML
-Ctrl+Shift+S      Save layout as
-Ctrl+N            Add a new actuated element
-Ctrl+P            Add pipes by clicking endpoints
-Click             Select one element or pipe
-Ctrl+click        Add/remove item from selection
-Drag empty area   Box-select multiple items
-Drag selection    Move selected items
-Shift+drag        Constrain movement horizontally/vertically
-Mouse wheel       Zoom the editor canvas
-Middle-drag       Pan the editor canvas
-Space+left-drag   Pan the editor canvas
-R                 Rotate selected item(s) +90°
-Shift+R           Rotate selected item(s) -90°
-Delete/Backspace  Delete selected item(s)
-Arrow keys        Nudge selected item(s)
-Shift+arrow       Nudge selected item(s) by one grid step
-Esc               Cancel pipe mode or clear selection
-Ctrl+0            Fit canvas to window
-```
-
-## Implemented feature set in this version
-
-This version implements the first group of suggested UX improvements:
-
-1. **Undo / redo** for layout edits.
-2. **Grid, snapping, and alignment tools** including show/hide grid, snap to grid, configurable spacing, align, distribute, arrow-key nudging, and constrained dragging.
-3. **Multi-select editing** through Ctrl+click and rubber-band selection.
-4. **Pan and zoom canvas** while in edit mode.
-5. **Persistent properties panel** for selected elements and pipes.
-6. **Relay binding validation** for missing, duplicate, and out-of-range relay assignments.
-7. **Hardware binding browser** showing all 24 relays and whether each is available, assigned, or duplicated.
-8. **Strict runtime/edit separation** so hardware commands are not triggered while editing.
-
-## Relay validation
-
-The Validation / Relay Browser dock checks:
-
-```text
-Relay binding is present or intentionally unbound
-Relay number is within 1-24
-Duplicate relay assignments
-Unused relays
-```
-
-The relay browser shows all 24 relay channels and which element(s), if any, use each one.
-
-## Scalable layout
-
-The layout is stored in a fixed design coordinate system:
-
-```yaml
-panel:
-  design_width: 1180
-  design_height: 470
-```
-
-`ValvePanelCanvas` scales that coordinate system to the current widget size. In runtime mode it automatically fits the panel to the window. In edit mode you can pan and zoom the design canvas.
-
-## Config structure
-
-The main file is:
-
-```text
-config/valve_panel.yaml
-```
-
-Important sections:
-
-```yaml
-panel:
-  title: Scalable Pneumatic Valve Panel Editor
-  design_width: 1180
-  design_height: 470
-  default_element_size: [56, 56]
-  background_color: "#f8f8f8"
-
-valve_types:
-  solenoid_2_way:
-    display_name: 2-Way Solenoid Valve
-    shape: circle
-  solenoid_3_way:
-    display_name: 3-Way Solenoid Valve
-    shape: diamond
-  selector_valve:
-    display_name: Selector / Routing Valve
-    shape: hexagon
-  pneumatic_actuator:
-    display_name: Pneumatic Actuator
-    shape: rounded_rect
-  pump_or_source:
-    display_name: Pump / Pressure Source
-    shape: triangle
-
-elements:
-  - id: valve_01
-    label: "1"
-    element_type: solenoid_2_way
-    center: [32, 195]
-    size: [56, 56]
-    rotation: 0
-    relay_number: 1
-    initially_active: false
-    enabled: true
-    metadata: {}
-
-pipes:
-  - id: pipe_001
-    start: [186, 100]
-    end: [186, 300]
-    thickness: 20
-```
-
-## Shapes
-
-The built-in shapes are:
-
-```text
-circle
-ellipse
-rounded_rect
-capsule
-diamond
-triangle
-hexagon
-rectangle fallback for unknown names
-```
-
-Add semantic element types in YAML under `valve_types`; the Add/Edit Element dialog and properties panel will automatically show them.
-
-## Files to extend later
-
-```text
-src/pneumatic_valve_panel/main_window.py
-  Application shell, menus, toolbar, docks, dialogs. Add future windows here or
-  launch them from here.
-
-src/pneumatic_valve_panel/widgets/valve_panel_canvas.py
-  Scalable canvas, runtime toggles, editing interactions, undo/redo, grid,
-  snapping, selection, deletion, rotation, pan/zoom, and pipe creation.
-
-src/pneumatic_valve_panel/widgets/properties_panel.py
-  Persistent selected-item property editor.
-
-src/pneumatic_valve_panel/widgets/validation_panel.py
-  Layout validation and 24-relay browser.
-
-src/pneumatic_valve_panel/widgets/element_dialog.py
-  Add/edit dialog for actuated elements, including element type and relay binding.
-
-src/pneumatic_valve_panel/controllers/pneumatic_controller.py
-  The only layer that talks to the injected communicator.
-
-src/pneumatic_valve_panel/serial/
-  Demo communicator, protocols, and adapter examples. Replace this with your own
-  serial layer or add adapters here.
-```
+Sensor metadata includes the configured label, unit, expected sampling frequency, estimated sampling frequency, sample count, start/end timestamps, and elapsed duration.

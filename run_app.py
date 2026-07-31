@@ -14,6 +14,9 @@ if __name__ == "__main__":
     raise SystemExit(
         run_app(
             config_path=ROOT / "config" / "valve_panel.yaml",
+            dashboard_config_path=ROOT / "config" / "dashboard.yaml",
+            sensor_config_path=ROOT / "config" / "sensors.yaml",
+            data_root=ROOT / "recorded_sessions",
             communicator=DemoCommunicator(),
         )
     )

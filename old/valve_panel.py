@@ -5,9 +5,9 @@ from typing import Optional
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from ..controllers.valve_controller import ValveController
-from ..models import AttachedLine, PanelConfig, PanelLine, ValveButtonConfig
-from .circular_valve_button import CircularValveButton
+from ..src.pneumatic_valve_panel.controllers.pneumatic_controller import PneumaticController
+from ..src.pneumatic_valve_panel.models import AttachedLine, PanelConfig, PanelLine, ValveButtonConfig
+from ..src.pneumatic_valve_panel.widgets.circular_valve_button import CircularValveButton
 
 
 class ValvePanel(QtWidgets.QWidget):
@@ -26,7 +26,7 @@ class ValvePanel(QtWidgets.QWidget):
         self,
         *,
         panel_config: PanelConfig,
-        controller: Optional[ValveController] = None,
+        controller: Optional[PneumaticController] = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -40,7 +40,7 @@ class ValvePanel(QtWidgets.QWidget):
         self._set_background_color(QtGui.QColor(248, 248, 248))
         self.rebuild()
 
-    def set_controller(self, controller: ValveController | None) -> None:
+    def set_controller(self, controller: PneumaticController | None) -> None:
         self.controller = controller
 
     def set_panel_config(self, panel_config: PanelConfig) -> None:
@@ -80,7 +80,7 @@ class ValvePanel(QtWidgets.QWidget):
             button.setChecked(checked)
             button.blockSignals(False)
             if send and self.controller is not None:
-                self.controller.set_valve_state(valve_id, checked)
+                self.controller.set_element_state(element_id=valve_id, element_type="solenoid_default", is_active=checked)
         self.update()
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
@@ -114,7 +114,7 @@ class ValvePanel(QtWidgets.QWidget):
             return
         try:
             if self.controller is not None:
-                self.controller.set_valve_state(valve_id, is_open)
+                self.controller.set_element_state(element_id=valve_id, element_type="solenoid_default", is_active=is_open)
         except Exception as exc:  # keep GUI state synchronized if hardware command fails
             button = self._buttons[valve_id]
             button.blockSignals(True)

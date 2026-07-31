@@ -49,6 +49,7 @@ class ElementDialog(QtWidgets.QDialog):
             relay_number=relay_number,
             initially_active=self.initial_state_check.isChecked(),
             enabled=self.enabled_check.isChecked(),
+            locked=self.locked_check.isChecked(),
             metadata=dict(self.existing.metadata) if self.existing is not None else {},
         )
 
@@ -126,6 +127,8 @@ class ElementDialog(QtWidgets.QDialog):
         self.rotation_spin.setSuffix("°")
 
         self.initial_state_check = QtWidgets.QCheckBox("Start active/open")
+        self.locked_check = QtWidgets.QCheckBox("Start locked")
+        self.locked_check.setToolTip("Locked elements keep their current state until unlocked from the runtime context menu or edited here.")
         self.enabled_check = QtWidgets.QCheckBox("Enabled")
         self.enabled_check.setChecked(True)
 
@@ -142,6 +145,7 @@ class ElementDialog(QtWidgets.QDialog):
         form.addRow("Height", self.height_spin)
         form.addRow("Rotation", self.rotation_spin)
         form.addRow("Initial state", self.initial_state_check)
+        form.addRow("Locked", self.locked_check)
         form.addRow("Enabled", self.enabled_check)
         form.addRow("Used relays", self.used_relays_label)
 
@@ -192,4 +196,5 @@ class ElementDialog(QtWidgets.QDialog):
         self.height_spin.setValue(self.existing.size[1])
         self.rotation_spin.setValue(self.existing.rotation % 360.0)
         self.initial_state_check.setChecked(self.existing.initially_active)
+        self.locked_check.setChecked(self.existing.locked)
         self.enabled_check.setChecked(self.existing.enabled)

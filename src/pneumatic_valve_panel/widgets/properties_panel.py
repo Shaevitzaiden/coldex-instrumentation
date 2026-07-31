@@ -109,6 +109,8 @@ class PropertiesPanel(QtWidgets.QWidget):
         self.element_rotation = self._double_spin(0, 359, 1)
         self.element_rotation.setSuffix("°")
         self.element_state = QtWidgets.QCheckBox("Active/open")
+        self.element_locked = QtWidgets.QCheckBox("Locked")
+        self.element_locked.setToolTip("Locked elements cannot be toggled in runtime mode until unlocked.")
         self.element_enabled = QtWidgets.QCheckBox("Enabled")
 
         form.addRow("ID", self.element_id_edit)
@@ -121,6 +123,7 @@ class PropertiesPanel(QtWidgets.QWidget):
         form.addRow("Height", self.element_h)
         form.addRow("Rotation", self.element_rotation)
         form.addRow("State", self.element_state)
+        form.addRow("Locked", self.element_locked)
         form.addRow("Enabled", self.element_enabled)
 
         apply_button = QtWidgets.QPushButton("Apply")
@@ -227,6 +230,7 @@ class PropertiesPanel(QtWidgets.QWidget):
         self.element_h.setValue(element.size[1])
         self.element_rotation.setValue(element.rotation % 360.0)
         self.element_state.setChecked(element.initially_active)
+        self.element_locked.setChecked(element.locked)
         self.element_enabled.setChecked(element.enabled)
 
     def _populate_pipe(self, pipe: PipeConfig) -> None:
@@ -260,6 +264,7 @@ class PropertiesPanel(QtWidgets.QWidget):
             relay_number=self.relay_combo.currentData(),
             initially_active=self.element_state.isChecked(),
             enabled=self.element_enabled.isChecked(),
+            locked=self.element_locked.isChecked(),
             metadata=dict(self.panel_config.element_by_id(self.element_original_id).metadata),
         )
         self.element_changed.emit(self.element_original_id, replacement)
