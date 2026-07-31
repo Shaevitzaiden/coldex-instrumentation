@@ -1,4 +1,16 @@
-from .demo_communicator import DemoCommunicator
-from .protocols import PneumaticCommunicator, ValveCommunicator
+from .demo_communicator import DemoCommunicator, DemoEnvironmentalCommunicator
+from .protocols import (
+    GenericCommandCommunicator,
+    PneumaticCommunicator,
+    StreamingCommunicator,
+    ValveCommunicator,
+)
 
-__all__ = ["DemoCommunicator", "PneumaticCommunicator", "ValveCommunicator"]
+__all__ = [
+    "DemoCommunicator",
+    "DemoEnvironmentalCommunicator",
+    "GenericCommandCommunicator",
+    "PneumaticCommunicator",
+    "StreamingCommunicator",
+    "ValveCommunicator",
+]

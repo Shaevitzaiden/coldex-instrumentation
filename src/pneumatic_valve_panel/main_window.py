@@ -15,12 +15,16 @@ from .data import (
     DashboardTileConfig,
     DataHub,
     DataHubLoggingHandler,
+    DeviceDefinition,
+    QtDataBridge,
     SensorDefinition,
+    StreamHub,
     load_dashboard_config,
+    load_device_definitions,
     load_sensor_definitions,
     save_dashboard_config,
 )
-from .hardware import HardwareService
+from .hardware import DeviceManager
 from .models import PanelConfig
 from .recording import SessionRecorder
 from .widgets import (
@@ -43,8 +47,10 @@ class MainWindow(QtWidgets.QMainWindow):
         *,
         config_path: Path,
         communicator: Any = None,
+        communicators: dict[str, Any] | None = None,
         dashboard_config_path: Path | None = None,
         sensor_config_path: Path | None = None,
+        device_config_path: Path | None = None,
         data_root: Path | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
@@ -53,40 +59,72 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config_path = Path(config_path)
         self.dashboard_config_path = Path(dashboard_config_path or self.config_path.with_name("dashboard.yaml"))
         self.sensor_config_path = Path(sensor_config_path or self.config_path.with_name("sensors.yaml"))
+        self.device_config_path = Path(device_config_path or self.config_path.with_name("devices.yaml"))
         self.data_root = Path(data_root or self.config_path.parent.parent / "recorded_sessions")
 
         self.panel_config: PanelConfig = load_panel_config(self.config_path)
         self.dashboard_config: DashboardConfig = load_dashboard_config(self.dashboard_config_path)
         self._default_dashboard_config = copy.deepcopy(self.dashboard_config)
         self.sensor_definitions: dict[str, SensorDefinition] = load_sensor_definitions(self.sensor_config_path)
+        self.device_definitions: dict[str, DeviceDefinition] = load_device_definitions(self.device_config_path)
         self._dirty = False
         self._dashboard_dirty = False
         self._save_close_confirmed = False
         self._shutdown_complete = False
 
-        self.data_hub = DataHub(self)
-        self.qt_log_handler = DataHubLoggingHandler(self)
+        # StreamHub is the application-wide, non-Qt data backbone.  Every
+        # serial device, recorder, plot bridge, and future automation worker
+        # observes the same normalized streams without competing for one queue.
+        self.stream_hub = StreamHub()
+
+        # QtDataBridge rate-limits high-rate streams before they reach widgets.
+        # The recorder subscribes directly to StreamHub and therefore does not
+        # lose full-rate data when the GUI redraw rate is lower.
+        self.qt_data_bridge = QtDataBridge(stream_hub=self.stream_hub, parent=self)
+        self.data_hub = DataHub(stream_hub=self.stream_hub, parent=self)
+        self.qt_data_bridge.frame_received.connect(self.data_hub.publish_frame)
+        self.qt_data_bridge.log_received.connect(self.data_hub.publish_log_event)
+        self.qt_data_bridge.command_result_received.connect(self.data_hub.publish_relay_result)
+        self.qt_data_bridge.device_status_received.connect(self.data_hub.publish_device_status)
+
+        self.qt_log_handler = DataHubLoggingHandler(self.stream_hub)
         self.qt_log_handler.setFormatter(logging.Formatter("%(message)s"))
-        self.qt_log_handler.emitter.event.connect(self.data_hub.publish_log_event)
         logging.getLogger().addHandler(self.qt_log_handler)
+
         self.session_recorder = SessionRecorder(
+            stream_hub=self.stream_hub,
             sensor_definitions=self.sensor_definitions,
             base_directory=self.data_root,
             autosave_interval_s=30,
             parent=self,
         )
-        self.data_hub.log_received.connect(self.session_recorder.on_log_event)
-        self.data_hub.frame_received.connect(self.session_recorder.on_sensor_frame)
 
-        self.hardware_service = HardwareService(communicator=communicator, parent=self)
-        self.hardware_service.frame_received.connect(self.data_hub.publish_frame)
-        self.hardware_service.log_event.connect(self.data_hub.publish_log_event)
-        self.hardware_service.relay_result.connect(self.data_hub.publish_relay_result)
-        self.hardware_service.connection_changed.connect(self.data_hub.set_connected)
+        # Backwards compatibility: callers may still inject one ``communicator``.
+        # It is assigned to the configured command-target device.  New code
+        # should pass a mapping such as {"controller": ..., "flow_meter": ...}.
+        communicator_map = dict(communicators or {})
+        if communicator is not None and "controller" not in communicator_map:
+            command_targets = [
+                definition.communicator_key or definition.device_id
+                for definition in self.device_definitions.values()
+                if definition.command_target
+            ]
+            communicator_map[command_targets[0] if command_targets else "controller"] = communicator
+
+        self.device_manager = DeviceManager(
+            device_definitions=self.device_definitions,
+            sensor_definitions=self.sensor_definitions,
+            communicators=communicator_map,
+            stream_hub=self.stream_hub,
+            parent=self,
+        )
+        # Alias retained because a few external integrations may still refer to
+        # MainWindow.hardware_service.  It now represents the multi-device manager.
+        self.hardware_service = self.device_manager
 
         self.controller = PneumaticController(
             panel_config=self.panel_config,
-            communicator=self.hardware_service,
+            communicator=self.device_manager,
             logger=self.logger,
         )
 
@@ -137,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().addPermanentWidget(self.connection_label)
         self.statusBar().addPermanentWidget(self.recording_status_label)
         self.data_hub.connection_changed.connect(self._on_connection_changed)
+        self.data_hub.device_connection_changed.connect(self._on_device_connection_changed)
         self.session_recorder.recording_changed.connect(self._on_recording_changed)
         self.session_recorder.session_directory_changed.connect(self.recording_panel.set_session_directory)
         self.session_recorder.message.connect(self.recording_panel.show_message)
@@ -148,6 +187,8 @@ class MainWindow(QtWidgets.QMainWindow):
             panel_config=self.panel_config,
             controller=self.controller,
             data_hub=self.data_hub,
+            stream_hub=self.stream_hub,
+            device_manager=self.device_manager,
             sensor_definitions=self.sensor_definitions,
             logger=self.logger,
         )
@@ -179,12 +220,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 "panel_config": str(self.config_path),
                 "dashboard_config": str(self.dashboard_config_path),
                 "sensor_config": str(self.sensor_config_path),
+                "device_config": str(self.device_config_path),
             },
         )
-        QtCore.QTimer.singleShot(0, self.hardware_service.start)
+        QtCore.QTimer.singleShot(0, self.device_manager.start)
 
-    def set_communicator(self, communicator: Any | None) -> None:
-        self.hardware_service.set_communicator(communicator)
+    def set_communicator(self, communicator: Any | None, device_id: str | None = None) -> None:
+        """Replace one live device communicator after startup.
+
+        ``device_id`` defaults to the configured command-target device so the
+        method remains compatible with the former single-device API.
+        """
+
+        self.device_manager.set_communicator(
+            device_id or self.device_manager.default_command_device_id,
+            communicator,
+        )
 
     # ------------------------------------------------------------------
     # Dashboard construction
@@ -217,6 +268,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 data_hub=context.data_hub,
                 sensor_definitions=context.sensor_definitions,
                 channels=list(config.config.get("channels", [])) or list(context.sensor_definitions),
+                plot_groups=list(config.config.get("plot_groups", [])),
+                group_by_unit=bool(config.config.get("group_by_unit", True)),
                 history_seconds=float(config.config.get("history_seconds", 30.0)),
                 removable=config.removable,
             ),
@@ -946,7 +999,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(bool)
     def _on_connection_changed(self, connected: bool) -> None:
-        self.connection_label.setText("Hardware: connected" if connected else "Hardware: disconnected")
+        # Aggregate fallback used before individual device statuses arrive.
+        if not self.data_hub.device_connections:
+            self.connection_label.setText(
+                "Hardware: connected" if connected else "Hardware: disconnected"
+            )
+
+    @QtCore.pyqtSlot(str, bool)
+    def _on_device_connection_changed(self, device_id: str, connected: bool) -> None:
+        enabled_count = sum(1 for definition in self.device_definitions.values() if definition.enabled)
+        connected_count = sum(self.data_hub.device_connections.values())
+        self.connection_label.setText(
+            f"Hardware: {connected_count}/{enabled_count} devices connected"
+        )
 
     @QtCore.pyqtSlot(bool)
     def _on_recording_changed(self, active: bool) -> None:
@@ -1002,9 +1067,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
         try:
             self.data_hub.log("Application shutdown requested", source="application")
-            self.hardware_service.stop()
+            self.device_manager.stop()
             QtWidgets.QApplication.processEvents()
-            self.data_hub.log("Hardware service stopped", source="application")
+            self.data_hub.log("All device services stopped", source="application")
+            # Stop GUI bridge subscriptions after final device events have been
+            # published; the recorder still has its independent subscriptions.
+            self.qt_data_bridge.close()
             self.session_recorder.finalize()
         except Exception as exc:
             QtWidgets.QMessageBox.critical(

@@ -1,75 +1,123 @@
-# Implementation Notes — v6.7 Fixed Grid
+# Implementation Notes — v6.8 Multi-Device Stream Hub
 
-## Scope of the rollback
+## Scope
 
-Only dashboard/window layout management was rolled back. The following newer systems remain intact:
+The stable v6.7 fixed-grid GUI and valve editor were retained. The backend was refactored through migration phases 1–5:
 
-- threaded `HardwareService` and command queue,
-- `DataHub` broadcasting,
-- live plots and sensor values,
-- user/hardware log events,
-- `SessionRecorder`, autosave, snapshots, and shutdown finalization,
-- locked valve states and runtime context menus,
-- valve-layout editor and valve-panel-local toolbars.
+1. source-qualified data models;
+2. multiple independent device workers;
+3. centralized thread-safe pub/sub;
+4. recorder consumption and disk work moved to a background thread;
+5. one live sensor tile may contain multiple plot axes.
 
-## Dashboard implementation
+## Phase 1: source-qualified frames
 
-`widgets/tiles/dashboard_widget.py` is again a `QWidget` containing a `QGridLayout`, not a native dock manager.
+`SensorDefinition` now includes:
 
-The dashboard stores:
+- `sensor_id`: globally qualified runtime ID;
+- `source_device`;
+- `source_channel`;
+- label, unit, expected rate, and recording metadata.
 
-- `rows` and `columns`,
-- `row_stretches` and `column_stretches`,
-- one `DashboardTileConfig` per panel,
-- explicit row/column and span geometry.
+`SensorFrame` now includes:
 
-Runtime mode hides configure/remove buttons. Dashboard edit mode reveals them. Placement is validated before changes are applied; overlapping grid cells raise a user-visible error rather than allowing widgets to cover each other.
+- `source_id`;
+- `host_received_monotonic_ns`;
+- global `elapsed_s` based on one application monotonic origin;
+- host UTC time;
+- device timestamp and sequence;
+- values keyed by global sensor IDs.
 
-The default ratio is:
+The worker uses the sensor configuration to map local packet channels to global IDs. Unknown local channels receive a deterministic `<device_id>.<channel>` fallback.
 
-- columns `[3, 2]` → 60% / 40%,
-- rows `[3, 1]` → 75% / 25%.
+## Phase 2: DeviceManager
 
-`DashboardConfig` still accepts legacy dock-state fields so old YAML can be parsed, but `DashboardWidget.current_config()` intentionally emits `dock_state=None` and `dock_layout_version="fixed_grid_v1"`.
+The single `HardwareService` was replaced by:
 
-## Singleton panels
+- `DeviceManager`: lifecycle and command router;
+- `SerialDeviceService`: queue/thread/worker owner for one device;
+- `DeviceWorker`: communicator owner, packet parser boundary, and command executor.
 
-The valve canvas and Session Recording widget are singleton application objects.
+Every enabled device receives one `QThread`. This isolates blocking instruments and guarantees one owner per serial port.
 
-- `valve_panel_main` is non-removable.
-- `recording_session` is non-removable.
-- Resetting the dashboard temporarily reparents these two widgets, deletes the old dashboard, then inserts them into newly created tile wrappers.
+The old `HardwareService` and `HardwareWorker` import names remain aliases for migration compatibility, but new code should import `DeviceManager` and `DeviceWorker`.
 
-The Session Recording widget is wrapped in a `QScrollArea`. This prevents its intrinsic size hint from forcing the bottom row above its configured 25% height while keeping every recording control accessible.
+`run_app()` accepts:
 
-## Valve canvas resizing
+```python
+communicators={"controller": controller, "flow_meter": meter}
+```
 
-The old design was `1180 × 470`, an aspect ratio that caused substantial vertical letterboxing in the new upper-left panel.
+The previous `communicator=controller` argument is still accepted and assigned to the configured command-target device.
 
-The packaged layout was transformed to `900 × 550`:
+## Phase 3: StreamHub
 
-- X positions were multiplied by `900 / 1180`.
-- Y positions were multiplied by `550 / 470`.
-- Element dimensions were multiplied by `900 / 1180`, preserving approximately the same displayed button size at the new default fit.
-- Pipe endpoints were transformed by the corresponding X/Y factors.
+`StreamHub` has no Qt dependency. It provides:
 
-This changes the saved design coordinate system, not the canvas rendering algorithm. Runtime rendering continues to use uniform aspect-preserving fit.
+- named topics;
+- independent bounded subscriber queues;
+- configurable overflow policy;
+- latest-by-topic cache;
+- latest value per sensor;
+- latest frame per source;
+- bounded per-sensor history;
+- known-topic discovery.
 
-## Dashboard edit interactions
+Typed publishing helpers create topics for frames, per-channel samples, logs, command results, and device status.
 
-`TileWidget` always displays its title. In dashboard edit mode it additionally shows:
+`DataHub` is now only a GUI-thread cache and Qt signal facade. `QtDataBridge` drains StreamHub subscriptions on a timer and feeds DataHub. Full-rate consumers bypass that bridge.
 
-- a configure button,
-- a remove button for removable panels,
-- a visual edit-mode header treatment.
+## Phase 4: recorder worker
 
-The tile configuration dialog changes row, column, row span, column span, title, and tile-specific sensor options. Live plot and latest-value panels are rebuilt when their channel settings change. Valve, recording, and log panels are repositioned without replacing their live widget instances.
+`SessionRecorder` is now a QObject facade around:
 
-## Testing performed
+- a dedicated Python thread;
+- frame and log StreamHub subscriptions;
+- a recorder command queue;
+- a pure `_RecorderState` file/persistence implementation.
 
-- Python compile/AST parsing over the project.
-- Dashboard YAML load/save round trip using the data-model modules without importing PyQt.
-- Valve panel YAML load validation.
-- Verification of the four default panel types and 3:2 / 3:1 stretch ratios.
+Autosave and file writes occur in the recorder thread. Manual persistence commands first drain all frames/logs already queued before writing. Shutdown finalization blocks until the recorder confirms final files are complete.
 
-PyQt5 is not installed in the artifact execution environment, so visual launch testing was not possible here.
+The recorder uses a large bounded subscription. Overflow is logged as an error rather than allowing unbounded memory growth.
+
+## Phase 5: multi-axis plotting
+
+`LivePlotTile` accepts either:
+
+- explicit `plot_groups`; or
+- a flat channel list with `group_by_unit` enabled.
+
+With pyqtgraph installed, a `GraphicsLayoutWidget` contains one `PlotItem` per group. Each channel has its own buffer/curve. Frames only append data; a 50 ms timer redraws the plots.
+
+The fallback renderer creates one lightweight QWidget plot per group when pyqtgraph is unavailable.
+
+## Thread ownership summary
+
+```text
+GUI thread
+    MainWindow, ValvePanelCanvas, DataHub, QtDataBridge, plot widgets
+
+One QThread per device
+    communicator connect/read/write/disconnect, packet normalization
+
+Recorder Python thread
+    full-rate subscriptions, CSV/YAML writes, snapshots, autosave
+
+Future automation threads
+    direct StreamHub subscriptions and DeviceManager commands
+```
+
+## Tests performed
+
+Because PyQt5 is not installed in the artifact environment, visual launch testing was not possible. The following checks were run:
+
+- Python `compileall` across the complete project;
+- device and sensor YAML loading;
+- globally qualified local-channel normalization;
+- multiple independent StreamHub subscriptions;
+- latest-value and bounded-history queries;
+- background recorder consumption from multiple source devices;
+- separate per-sensor CSV creation and manifest finalization;
+- archive content validation.
+
+Minimal PyQt stubs were used only to load QObject-derived backend classes during non-visual tests; the actual project still depends on PyQt5 at runtime.

@@ -36,7 +36,7 @@ class RecordingPanel(QtWidgets.QWidget):
         directory_row.addWidget(self.directory_button)
 
         self.sensor_table = QtWidgets.QTableWidget(0, 4)
-        self.sensor_table.setHorizontalHeaderLabels(["Log", "Sensor", "Unit", "Expected Hz"])
+        self.sensor_table.setHorizontalHeaderLabels(["Log", "Sensor / source", "Unit", "Expected Hz"])
         self.sensor_table.verticalHeader().setVisible(False)
         self.sensor_table.horizontalHeader().setStretchLastSection(True)
         self.sensor_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
@@ -48,7 +48,10 @@ class RecordingPanel(QtWidgets.QWidget):
             check.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)
             check.setCheckState(QtCore.Qt.Checked if definition.default_log else QtCore.Qt.Unchecked)
             self.sensor_table.setItem(row, 0, check)
-            label = QtWidgets.QTableWidgetItem(definition.label)
+            label = QtWidgets.QTableWidgetItem(f"{definition.label} ({definition.sensor_id})")
+            label.setToolTip(
+                f"Device: {definition.source_device}\nLocal channel: {definition.source_channel}"
+            )
             label.setFlags(QtCore.Qt.ItemIsEnabled)
             self.sensor_table.setItem(row, 1, label)
             unit = QtWidgets.QTableWidgetItem(definition.unit)

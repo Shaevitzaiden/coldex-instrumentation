@@ -1,26 +1,57 @@
+# Sensor IDs are globally qualified as <source_device>.<logical_channel>.
+# source_channel is the local key emitted by that device's packet parser.
 sensors:
-  pressure_supply:
+  controller.pressure_supply:
     label: Supply Pressure
+    source_device: controller
+    source_channel: pressure_supply
     unit: kPa
     expected_sampling_hz: 20
     enabled: true
     default_log: true
-    description: Example pressure channel from the shared microcontroller stream.
-  pressure_output:
+    description: Supply pressure sampled by the controller microcontroller.
+
+  controller.pressure_output:
     label: Output Pressure
+    source_device: controller
+    source_channel: pressure_output
     unit: kPa
     expected_sampling_hz: 20
     enabled: true
     default_log: true
-  flow_rate:
+
+  controller.flow_rate:
     label: Flow Rate
+    source_device: controller
+    source_channel: flow_rate
     unit: L/min
     expected_sampling_hz: 20
     enabled: true
     default_log: false
-  temperature:
+
+  controller.temperature:
     label: Controller Temperature
+    source_device: controller
+    source_channel: controller_temperature
     unit: °C
     expected_sampling_hz: 20
+    enabled: true
+    default_log: false
+
+  environment.temperature:
+    label: Ambient Temperature
+    source_device: environment
+    source_channel: ambient_temperature
+    unit: °C
+    expected_sampling_hz: 5
+    enabled: true
+    default_log: false
+
+  environment.humidity:
+    label: Relative Humidity
+    source_device: environment
+    source_channel: relative_humidity
+    unit: '%RH'
+    expected_sampling_hz: 5
     enabled: true
     default_log: false

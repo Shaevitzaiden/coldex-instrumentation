@@ -55,6 +55,11 @@ class TileConfigDialog(QtWidgets.QDialog):
         self.history_spin.setRange(1.0, 3600.0)
         self.history_spin.setSuffix(" s")
         self.history_spin.setValue(float((existing.config if existing else {}).get("history_seconds", 30.0)))
+        self.group_by_unit_check = QtWidgets.QCheckBox("Create separate plot axes for different units")
+        self.group_by_unit_check.setChecked(bool((existing.config if existing else {}).get("group_by_unit", True)))
+        self.group_by_unit_check.setToolTip(
+            "Pressure, flow, temperature, and other units are normally easier to read on separate y-axes."
+        )
 
         self.sensor_list = QtWidgets.QListWidget()
         self.sensor_list.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
@@ -76,6 +81,7 @@ class TileConfigDialog(QtWidgets.QDialog):
         form.addRow("Row span", self.row_span_spin)
         form.addRow("Column span", self.column_span_spin)
         form.addRow("Plot history", self.history_spin)
+        form.addRow("Plot grouping", self.group_by_unit_check)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addLayout(form)
@@ -99,6 +105,14 @@ class TileConfigDialog(QtWidgets.QDialog):
         config = {} if tile_type in {"log", "valve_panel", "recording"} else {"channels": channels}
         if tile_type == "live_plot":
             config["history_seconds"] = self.history_spin.value()
+            config["group_by_unit"] = self.group_by_unit_check.isChecked()
+            # Preserve explicit YAML plot groups when the channel selection has
+            # not changed.  If channels change, automatic unit grouping creates
+            # a valid replacement without leaving stale group references.
+            if self.existing is not None:
+                old_channels = list(self.existing.config.get("channels", []))
+                if old_channels == channels and self.existing.config.get("plot_groups"):
+                    config["plot_groups"] = list(self.existing.config["plot_groups"])
         return DashboardTileConfig(
             tile_id=self.id_edit.text().strip(),
             tile_type=tile_type,
@@ -127,3 +141,4 @@ class TileConfigDialog(QtWidgets.QDialog):
         self.sensor_label.setVisible(sensors_visible)
         self.sensor_list.setVisible(sensors_visible)
         self.history_spin.setEnabled(tile_type == "live_plot")
+        self.group_by_unit_check.setEnabled(tile_type == "live_plot")

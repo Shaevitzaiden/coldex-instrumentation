@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pneumatic-valve-panel"
-version = "0.3.0"
-description = "Tiled PyQt5 pneumatic control, live sensor dashboard, and session recorder"
+version = "0.4.0"
+description = "Multi-device PyQt5 pneumatic control, stream hub, live plots, and recorder"
 requires-python = ">=3.10"
 dependencies = [
     "PyQt5>=5.15",

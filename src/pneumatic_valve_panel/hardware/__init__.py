@@ -1,3 +1,7 @@
-from .hardware_service import HardwareService, HardwareWorker
+from .device_manager import DeviceManager, DeviceWorker, SerialDeviceService
 
-__all__ = ["HardwareService", "HardwareWorker"]
+# Backwards-compatible names from the single-device implementation.
+HardwareService = DeviceManager
+HardwareWorker = DeviceWorker
+
+__all__ = ["DeviceManager", "DeviceWorker", "HardwareService", "HardwareWorker", "SerialDeviceService"]

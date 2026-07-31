@@ -1,0 +1,24 @@
+# Each enabled device receives its own communicator owner, command queue, and
+# worker thread. communicator_key selects an object passed to run_app().
+devices:
+  controller:
+    enabled: true
+    communicator_key: controller
+    command_target: true
+    description: Relay controller and synchronized onboard sensor stream.
+    connection:
+      # These values are passed to connect(...) only when the injected
+      # communicator accepts matching keyword arguments.
+      port: COM4
+      baudrate: 921600
+      timeout_s: 0.05
+
+  environment:
+    enabled: true
+    communicator_key: environment
+    command_target: false
+    description: Example independent environmental serial instrument.
+    connection:
+      port: COM6
+      baudrate: 115200
+      timeout_s: 0.1
