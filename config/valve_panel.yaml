@@ -1,7 +1,7 @@
 panel:
   title: Scalable Pneumatic Valve Panel Editor
-  design_width: 900
-  design_height: 550
+  design_width: 900.0
+  design_height: 550.0
   default_element_size:
   - 42.712
   - 42.712
@@ -32,12 +32,12 @@ elements:
   label: '1'
   element_type: solenoid_2_way
   center:
-  - 24.407
-  - 228.191
+  - 300.0
+  - 275.0
   size:
   - 42.712
   - 42.712
-  rotation: 0
+  rotation: 90.0
   relay_number: 1
   initially_active: false
   enabled: true
@@ -49,12 +49,12 @@ elements:
   label: '2'
   element_type: solenoid_2_way
   center:
-  - 95.339
-  - 228.191
+  - 375.0
+  - 275.0
   size:
   - 42.712
   - 42.712
-  rotation: 0
+  rotation: 90.0
   relay_number: 2
   initially_active: false
   enabled: true
@@ -66,12 +66,12 @@ elements:
   label: '3'
   element_type: solenoid_2_way
   center:
-  - 174.661
-  - 55.0
+  - 450.0
+  - 275.0
   size:
   - 42.712
   - 42.712
-  rotation: 0
+  rotation: 90.0
   relay_number: 3
   initially_active: false
   enabled: true
@@ -83,12 +83,12 @@ elements:
   label: '4'
   element_type: solenoid_2_way
   center:
-  - 241.78
-  - 56.17
+  - 525.0
+  - 275.0
   size:
   - 42.712
   - 42.712
-  rotation: 0
+  rotation: 90.0
   relay_number: 4
   initially_active: false
   enabled: true
@@ -100,12 +100,12 @@ elements:
   label: '5'
   element_type: solenoid_2_way
   center:
-  - 311.949
-  - 57.34
+  - 600.0
+  - 275.0
   size:
   - 42.712
   - 42.712
-  rotation: 0
+  rotation: 90.0
   relay_number: 5
   initially_active: false
   enabled: true
@@ -113,636 +113,84 @@ elements:
   metadata:
     legacy_arduino_pin: 6
     legacy_button: Button 5
-- id: valve_06
-  label: '6'
-  element_type: solenoid_2_way
-  center:
-  - 169.322
-  - 402.554
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 6
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 7
-    legacy_button: Button 6
-- id: valve_07
-  label: '7'
-  element_type: solenoid_2_way
-  center:
-  - 236.441
-  - 402.554
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 7
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 8
-    legacy_button: Button 7
-- id: valve_08
-  label: '8'
-  element_type: solenoid_2_way
-  center:
-  - 305.847
-  - 402.554
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 8
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 9
-    legacy_button: Button 8
-- id: valve_09
-  label: '9'
-  element_type: solenoid_3_way
-  center:
-  - 366.102
-  - 183.724
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 9
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 10
-    legacy_button: Button 9
-- id: valve_10
-  label: '10'
-  element_type: solenoid_3_way
-  center:
-  - 366.102
-  - 277.34
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 10
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 11
-    legacy_button: Button 10
-- id: valve_11
-  label: '11'
-  element_type: selector_valve
-  center:
-  - 453.051
-  - 99.468
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 11
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 12
-    legacy_button: Button 11
-- id: valve_12
-  label: '12'
-  element_type: selector_valve
-  center:
-  - 530.847
-  - 99.468
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 12
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 13
-    legacy_button: Button 12
-- id: valve_13
-  label: '13'
-  element_type: selector_valve
-  center:
-  - 610.169
-  - 102.979
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 13
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 14
-    legacy_button: Button 13
-- id: valve_14
-  label: '14'
-  element_type: solenoid_3_way
-  center:
-  - 663.559
-  - 278.511
-  size:
-  - 42.712
-  - 42.712
-  rotation: 0
-  relay_number: 14
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 15
-    legacy_button: Button 14
-- id: valve_15
-  label: '15'
-  element_type: pneumatic_actuator
-  center:
-  - 481.271
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 15
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 16
-    legacy_button: Button 15
-- id: valve_16
-  label: '16'
-  element_type: pneumatic_actuator
-  center:
-  - 542.288
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 16
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 17
-    legacy_button: Button 16
-- id: valve_17
-  label: '17'
-  element_type: pneumatic_actuator
-  center:
-  - 603.305
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 17
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 18
-    legacy_button: Button 17
-- id: valve_18
-  label: '18'
-  element_type: pneumatic_actuator
-  center:
-  - 664.322
-  - 471.596
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 18
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 19
-    legacy_button: Button 18
-- id: valve_19
-  label: '19'
-  element_type: pneumatic_actuator
-  center:
-  - 720.0
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 19
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 20
-    legacy_button: Button 19
-- id: valve_20
-  label: '20'
-  element_type: pneumatic_actuator
-  center:
-  - 777.966
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 20
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 21
-    legacy_button: Button 20
-- id: valve_21
-  label: '21'
-  element_type: pneumatic_actuator
-  center:
-  - 836.695
-  - 470.425
-  size:
-  - 51.864
-  - 33.559
-  rotation: 0
-  relay_number: 21
-  initially_active: false
-  enabled: true
-  locked: false
-  metadata:
-    legacy_arduino_pin: 22
-    legacy_button: Button 21
 pipes:
-- id: pipe_001
-  start:
-  - 141.864
-  - 117.021
-  end:
-  - 141.864
-  - 351.064
-  thickness: 20
 - id: pipe_002
   start:
-  - 146.441
-  - 117.021
+  - 300.0
+  - 275.0
   end:
-  - 375.254
-  - 117.021
-  thickness: 20
+  - 300.0
+  - 175.0
+  thickness: 18.0
 - id: pipe_003
   start:
-  - 146.441
-  - 327.66
+  - 375.0
+  - 275.0
   end:
-  - 375.254
-  - 327.66
-  thickness: 20
+  - 375.0
+  - 175.0
+  thickness: 18.0
+- id: pipe_001
+  start:
+  - 450.0
+  - 275.0
+  end:
+  - 450.0
+  - 175.0
+  thickness: 18.0
 - id: pipe_004
   start:
-  - 359.237
-  - 216.489
+  - 525.0
+  - 175.0
   end:
-  - 671.949
-  - 216.489
-  thickness: 20
+  - 525.0
+  - 275.0
+  thickness: 18.0
 - id: pipe_005
   start:
-  - 482.034
-  - 322.979
+  - 600.0
+  - 175.0
   end:
-  - 845.085
-  - 322.979
-  thickness: 20
+  - 600.0
+  - 275.0
+  thickness: 18.0
 - id: pipe_006
   start:
-  - 24.407
-  - 228.191
+  - 300.0
+  - 275.0
   end:
-  - -9.915
-  - 228.191
-  thickness: 20
-  metadata:
-    generated_from: valve_01
+  - 300.0
+  - 375.0
+  thickness: 18.0
 - id: pipe_007
   start:
-  - 24.407
-  - 228.191
+  - 375.0
+  - 275.0
   end:
-  - 77.797
-  - 228.191
-  thickness: 20
-  metadata:
-    generated_from: valve_01
+  - 375.0
+  - 375.0
+  thickness: 18.0
 - id: pipe_008
   start:
-  - 95.339
-  - 228.191
+  - 450.0
+  - 275.0
   end:
-  - 15.254
-  - 228.191
-  thickness: 20
-  metadata:
-    generated_from: valve_02
+  - 450.0
+  - 375.0
+  thickness: 18.0
 - id: pipe_009
   start:
-  - 95.339
-  - 228.191
+  - 525.0
+  - 275.0
   end:
-  - 148.729
-  - 228.191
-  thickness: 20
-  metadata:
-    generated_from: valve_02
+  - 525.0
+  - 375.0
+  thickness: 18.0
 - id: pipe_010
   start:
-  - 174.661
-  - 55.0
+  - 600.0
+  - 275.0
   end:
-  - 174.661
-  - -4.681
-  thickness: 20
-  metadata:
-    generated_from: valve_03
-- id: pipe_011
-  start:
-  - 174.661
-  - 55.0
-  end:
-  - 174.661
-  - 125.213
-  thickness: 20
-  metadata:
-    generated_from: valve_03
-- id: pipe_012
-  start:
-  - 241.78
-  - 56.17
-  end:
-  - 241.78
-  - -2.34
-  thickness: 20
-  metadata:
-    generated_from: valve_04
-- id: pipe_013
-  start:
-  - 241.78
-  - 56.17
-  end:
-  - 241.78
-  - 126.383
-  thickness: 20
-  metadata:
-    generated_from: valve_04
-- id: pipe_014
-  start:
-  - 311.949
-  - 57.34
-  end:
-  - 311.949
-  - -1.17
-  thickness: 20
-  metadata:
-    generated_from: valve_05
-- id: pipe_015
-  start:
-  - 311.949
-  - 57.34
-  end:
-  - 311.949
-  - 127.554
-  thickness: 20
-  metadata:
-    generated_from: valve_05
-- id: pipe_016
-  start:
-  - 169.322
-  - 402.554
-  end:
-  - 169.322
-  - 332.34
-  thickness: 20
-  metadata:
-    generated_from: valve_06
-- id: pipe_017
-  start:
-  - 169.322
-  - 402.554
-  end:
-  - 169.322
-  - 469.255
-  thickness: 20
-  metadata:
-    generated_from: valve_06
-- id: pipe_018
-  start:
-  - 236.441
-  - 402.554
-  end:
-  - 236.441
-  - 332.34
-  thickness: 20
-  metadata:
-    generated_from: valve_07
-- id: pipe_019
-  start:
-  - 236.441
-  - 402.554
-  end:
-  - 236.441
-  - 469.255
-  thickness: 20
-  metadata:
-    generated_from: valve_07
-- id: pipe_020
-  start:
-  - 305.847
-  - 402.554
-  end:
-  - 305.847
-  - 332.34
-  thickness: 20
-  metadata:
-    generated_from: valve_08
-- id: pipe_021
-  start:
-  - 305.847
-  - 402.554
-  end:
-  - 305.847
-  - 469.255
-  thickness: 20
-  metadata:
-    generated_from: valve_08
-- id: pipe_022
-  start:
-  - 366.102
-  - 183.724
-  end:
-  - 366.102
-  - 125.213
-  thickness: 20
-  metadata:
-    generated_from: valve_09
-- id: pipe_023
-  start:
-  - 366.102
-  - 183.724
-  end:
-  - 366.102
-  - 234.043
-  thickness: 20
-  metadata:
-    generated_from: valve_09
-- id: pipe_024
-  start:
-  - 366.102
-  - 277.34
-  end:
-  - 366.102
-  - 218.83
-  thickness: 20
-  metadata:
-    generated_from: valve_10
-- id: pipe_025
-  start:
-  - 366.102
-  - 277.34
-  end:
-  - 366.102
-  - 341.702
-  thickness: 20
-  metadata:
-    generated_from: valve_10
-- id: pipe_026
-  start:
-  - 453.051
-  - 99.468
-  end:
-  - 453.051
-  - 229.361
-  thickness: 20
-  metadata:
-    generated_from: valve_11
-- id: pipe_027
-  start:
-  - 530.847
-  - 99.468
-  end:
-  - 530.847
-  - 229.361
-  thickness: 20
-  metadata:
-    generated_from: valve_12
-- id: pipe_028
-  start:
-  - 610.169
-  - 102.979
-  end:
-  - 610.169
-  - 232.872
-  thickness: 20
-  metadata:
-    generated_from: valve_13
-- id: pipe_029
-  start:
-  - 663.559
-  - 278.511
-  end:
-  - 663.559
-  - 237.554
-  thickness: 20
-  metadata:
-    generated_from: valve_14
-- id: pipe_030
-  start:
-  - 663.559
-  - 278.511
-  end:
-  - 663.559
-  - 348.724
-  thickness: 20
-  metadata:
-    generated_from: valve_14
-- id: pipe_031
-  start:
-  - 481.271
-  - 470.425
-  end:
-  - 481.271
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_15
-- id: pipe_032
-  start:
-  - 542.288
-  - 470.425
-  end:
-  - 542.288
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_16
-- id: pipe_033
-  start:
-  - 603.305
-  - 470.425
-  end:
-  - 603.305
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_17
-- id: pipe_034
-  start:
-  - 664.322
-  - 471.596
-  end:
-  - 664.322
-  - 324.149
-  thickness: 20
-  metadata:
-    generated_from: valve_18
-- id: pipe_035
-  start:
-  - 720.0
-  - 470.425
-  end:
-  - 720.0
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_19
-- id: pipe_036
-  start:
-  - 777.966
-  - 470.425
-  end:
-  - 777.966
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_20
-- id: pipe_037
-  start:
-  - 836.695
-  - 470.425
-  end:
-  - 836.695
-  - 322.979
-  thickness: 20
-  metadata:
-    generated_from: valve_21
+  - 600.0
+  - 375.0
+  thickness: 18.0
