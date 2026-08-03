@@ -17,19 +17,32 @@ from pneumatic_valve_panel.serial.demo_communicator import (
     DemoCommunicator,
     DemoEnvironmentalCommunicator,
 )
+from pneumatic_valve_panel.serial.pneumatic_communicator import PneumaticCommunicator
 
 
 if __name__ == "__main__":
     raise SystemExit(
-        run_app(
-            config_path=ROOT / "config" / "valve_panel.yaml",
-            dashboard_config_path=ROOT / "config" / "dashboard.yaml",
-            sensor_config_path=ROOT / "config" / "sensors.yaml",
-            device_config_path=ROOT / "config" / "devices.yaml",
-            data_root=ROOT / "recorded_sessions",
-            communicators={
-                "controller": DemoCommunicator(),
-                "environment": DemoEnvironmentalCommunicator(),
-            },
+    #     run_app(
+    #         config_path=ROOT / "config" / "valve_panel.yaml",
+    #         dashboard_config_path=ROOT / "config" / "dashboard.yaml",
+    #         sensor_config_path=ROOT / "config" / "sensors.yaml",
+    #         device_config_path=ROOT / "config" / "devices.yaml",
+    #         data_root=ROOT / "recorded_sessions",
+    #         communicators={
+    #             "controller": DemoCommunicator(),
+    #             "environment": DemoEnvironmentalCommunicator(),
+    #         },
+    #     )
+    # )
+    run_app(
+                config_path=ROOT / "config" / "valve_panel.yaml",
+                dashboard_config_path=ROOT / "config" / "dashboard.yaml",
+                sensor_config_path=ROOT / "config" / "sensors.yaml",
+                device_config_path=ROOT / "config" / "devices.yaml",
+                data_root=ROOT / "recorded_sessions",
+                communicators={
+                    "controller": PneumaticCommunicator(),
+                    "environment": DemoEnvironmentalCommunicator(),
+                },
+            )
         )
-    )

@@ -9,8 +9,8 @@ devices:
     connection:
       # These values are passed to connect(...) only when the injected
       # communicator accepts matching keyword arguments.
-      port: COM4
-      baudrate: 921600
+      port: COM3
+      baudrate: 9600
       timeout_s: 0.05
 
   environment:

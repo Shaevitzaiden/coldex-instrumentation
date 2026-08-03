@@ -44,10 +44,10 @@ void setup()
 {
   // Setup Serial
   Serial.begin(serial_clock);
-  delay(1000);
-  Serial.println("Serial started");
-  clearInputBuffer();
-  delay(1000);
+  delay(50);
+  // Serial.println("Serial started");
+  // clearInputBuffer();
+  // delay(1000);
 
   // Cycle through all pins connected to relays and set them to OUTPUT pins
   for (int relay_module = 0; relay_module < 3; relay_module++) {
@@ -56,7 +56,7 @@ void setup()
       digitalWrite(relay_pins[relay_module][relay_channel], start_state);
     }
   }
-  Serial.println("Setup Complete");
+  // Serial.println("Setup Complete");
 }
 
 void loop() 
