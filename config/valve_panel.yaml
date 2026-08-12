@@ -113,6 +113,20 @@ elements:
   metadata:
     legacy_arduino_pin: 6
     legacy_button: Button 5
+- id: element_22
+  label: '22'
+  element_type: solenoid_2_way
+  center:
+  - 675.0
+  - 275.0
+  size:
+  - 42.7
+  - 42.7
+  rotation: 90.0
+  relay_number: 22
+  initially_active: false
+  enabled: true
+  locked: false
 pipes:
 - id: pipe_002
   start:
@@ -192,5 +206,21 @@ pipes:
   - 275.0
   end:
   - 600.0
+  - 375.0
+  thickness: 18.0
+- id: pipe_011
+  start:
+  - 675.0
+  - 275.0
+  end:
+  - 675.0
+  - 175.0
+  thickness: 18.0
+- id: pipe_012
+  start:
+  - 675.0
+  - 275.0
+  end:
+  - 675.0
   - 375.0
   thickness: 18.0

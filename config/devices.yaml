@@ -9,7 +9,7 @@ devices:
     connection:
       # These values are passed to connect(...) only when the injected
       # communicator accepts matching keyword arguments.
-      port: COM3
+      port: COM14
       baudrate: 9600
       timeout_s: 0.05
 

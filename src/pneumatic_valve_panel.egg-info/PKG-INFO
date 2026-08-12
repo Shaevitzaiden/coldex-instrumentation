@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: pneumatic-valve-panel
+Version: 0.4.0
+Summary: Multi-device PyQt5 pneumatic control, stream hub, live plots, and recorder
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: PyQt5>=5.15
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: pyqtgraph>=0.13
+Requires-Dist: numpy>=1.23
+Dynamic: license-file

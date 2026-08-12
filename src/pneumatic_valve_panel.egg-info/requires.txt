@@ -1,0 +1,4 @@
+PyQt5>=5.15
+PyYAML>=6.0
+pyqtgraph>=0.13
+numpy>=1.23
