@@ -47,11 +47,11 @@ sensors:
     enabled: true
     default_log: false
 
-  environment.humidity:
-    label: Relative Humidity
-    source_device: environment
-    source_channel: relative_humidity
-    unit: '%RH'
-    expected_sampling_hz: 5
-    enabled: true
-    default_log: false
+  # environment.humidity:
+  #   label: Relative Humidity
+  #   source_device: environment
+  #   source_channel: relative_humidity
+  #   unit: '%RH'
+  #   expected_sampling_hz: 5
+  #   enabled: true
+  #   default_log: false

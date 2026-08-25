@@ -16,7 +16,7 @@ void setup() {
   // Initialize I2C and serial port
   Wire.begin();
   Wire.setClock(100000);
-  Serial.begin(250000);
+  Serial.begin(9600);
 
   // Initialize MCP9601 with address 1
   thermo1.begin(1);
@@ -27,6 +27,12 @@ void setup() {
   else {
     Serial.println(ERR_THERMOCOUPLE_STARTUP);
   }
+
+  uint16_t id = thermo1.readWord(REG_DEV_ID);
+
+Serial.print("MCP9601 ID/revision: 0x");
+Serial.println(id, HEX);
+while (true);
 }
 
 void loop() {  
