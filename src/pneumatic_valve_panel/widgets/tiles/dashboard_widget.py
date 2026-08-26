@@ -58,6 +58,27 @@ class DashboardWidget(QtWidgets.QWidget):
             result.extend([default] * (count - len(result)))
         return result[:count]
 
+    def first_free_cell(self) -> tuple[int, int]:
+        """Return a sensible default location for a newly added panel.
+
+        The fixed dashboard rejects overlapping cells by design.  New-panel
+        dialogs therefore should not default to (0, 0), which is almost always
+        occupied by the valve panel.  Search the currently configured grid in
+        row-major order and, if it is full, return the first cell of a new row.
+        ``add_tile`` will expand the grid when that new row is actually used.
+        """
+
+        occupied: set[tuple[int, int]] = set()
+        for config in self.tile_configs.values():
+            occupied.update(self._occupied_cells(config))
+
+        for row in range(self.rows):
+            for column in range(self.columns):
+                if (row, column) not in occupied:
+                    return row, column
+
+        return self.rows, 0
+
     def add_tile(self, tile: TileWidget, config: DashboardTileConfig, *, emit_change: bool = True) -> None:
         if config.tile_id in self.tiles:
             raise ValueError(f"A dashboard tile named {config.tile_id!r} already exists")

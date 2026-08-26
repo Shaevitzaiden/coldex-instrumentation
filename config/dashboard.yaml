@@ -2,80 +2,97 @@ schema_version: 1
 dashboard:
   rows: 2
   columns: 2
-  row_stretches: [3, 1]
-  column_stretches: [3, 2]
+  row_stretches:
+  - 3
+  - 1
+  column_stretches:
+  - 3
+  - 2
   dock_layout_version: fixed_grid_v2_stream_hub
   tiles:
-    - id: valve_panel_main
-      type: valve_panel
-      title: Pneumatic Valve Panel
-      row: 0
-      column: 0
-      row_span: 1
-      column_span: 1
-      removable: false
-      config: {}
-
-    - id: plot_main
-      type: live_plot
-      title: Live Sensor Plots
-      row: 0
-      column: 1
-      row_span: 1
-      column_span: 1
-      removable: true
-      config:
-        history_seconds: 30
-        group_by_unit: true
+  - id: valve_panel_main
+    type: valve_panel
+    title: Pneumatic Valve Panel
+    row: 0
+    column: 0
+    row_span: 1
+    column_span: 1
+    removable: false
+    config: {}
+  - id: controller_thermocouple
+    type: sensor_readout
+    title: Controller Thermocouple
+    row: 2
+    column: 0
+    row_span: 1
+    column_span: 1
+    removable: true
+    config:
+      channels:
+      - controller.temperature
+      - environment.temperature
+      columns: 2
+      default_decimals: 1
+      value_font_size: 24
+      show_units: true
+      show_source: true
+      stale_after_s: 7.0
+  - id: plot_main
+    type: live_plot
+    title: Live Sensor Plots
+    row: 0
+    column: 1
+    row_span: 1
+    column_span: 1
+    removable: true
+    config:
+      history_seconds: 30
+      group_by_unit: true
+      channels:
+      - controller.pressure_supply
+      - controller.pressure_output
+      - controller.flow_rate
+      - controller.temperature
+      - environment.temperature
+      - environment.humidity
+      plot_groups:
+      - title: Pressures
+        y_label: Pressure
+        unit: kPa
         channels:
-          - controller.pressure_supply
-          - controller.pressure_output
-          - controller.flow_rate
-          - controller.temperature
-          - environment.temperature
-          - environment.humidity
-        # Explicit groups override automatic grouping by unit. This example
-        # demonstrates multiple independent axes inside the same panel.
-        plot_groups:
-          - title: Pressures
-            y_label: Pressure
-            unit: kPa
-            channels:
-              - controller.pressure_supply
-              - controller.pressure_output
-          - title: Flow
-            y_label: Flow rate
-            unit: L/min
-            channels:
-              - controller.flow_rate
-          - title: Temperatures
-            y_label: Temperature
-            unit: °C
-            channels:
-              - controller.temperature
-              - environment.temperature
-          - title: Humidity
-            y_label: Relative humidity
-            unit: '%RH'
-            channels:
-              - environment.humidity
-
-    - id: log_main
-      type: log
-      title: System Log
-      row: 1
-      column: 0
-      row_span: 1
-      column_span: 1
-      removable: true
-      config: {}
-
-    - id: recording_session
-      type: recording
-      title: Session Recording
-      row: 1
-      column: 1
-      row_span: 1
-      column_span: 1
-      removable: false
-      config: {}
+        - controller.pressure_supply
+        - controller.pressure_output
+      - title: Flow
+        y_label: Flow rate
+        unit: L/min
+        channels:
+        - controller.flow_rate
+      - title: Temperatures
+        y_label: Temperature
+        unit: "\xB0C"
+        channels:
+        - controller.temperature
+        - environment.temperature
+      - title: Humidity
+        y_label: Relative humidity
+        unit: '%RH'
+        channels:
+        - environment.humidity
+  - id: log_main
+    type: log
+    title: System Log
+    row: 1
+    column: 0
+    row_span: 1
+    column_span: 1
+    removable: true
+    config: {}
+  - id: recording_session
+    type: recording
+    title: Session Recording
+    row: 1
+    column: 1
+    row_span: 1
+    column_span: 1
+    removable: false
+    config: {}

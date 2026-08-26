@@ -1,0 +1,67 @@
+# Examples for the generic `sensor_readout` dashboard tile.
+#
+# These are snippets, not a second complete dashboard configuration.  Copy any
+# tile into config/dashboard.yaml and choose a free row/column while dashboard
+# edit mode is active.  Multiple sensor_readout tiles may exist at once because
+# each tile has a unique `id` and its own independent `channels` list.
+
+examples:
+  # Group several different physical quantities from the same subsystem.
+  - id: controller_conditions
+    type: sensor_readout
+    title: Controller Conditions
+    row: 2
+    column: 0
+    row_span: 1
+    column_span: 1
+    removable: true
+    config:
+      channels:
+        - controller.temperature
+        - controller.pressure_supply
+        - controller.pressure_output
+      columns: 2
+      default_decimals: 1
+      value_font_size: 24
+      show_units: true
+      show_source: false
+      stale_after_s: 5.0
+      display:
+        controller.temperature:
+          label: Board Temperature
+          decimals: 1
+        controller.pressure_supply:
+          label: Supply Pressure
+          decimals: 0
+        controller.pressure_output:
+          label: Output Pressure
+          decimals: 0
+
+  # A second independent readout can mix channels from other serial devices.
+  - id: environmental_conditions
+    type: sensor_readout
+    title: Environmental Conditions
+    row: 2
+    column: 1
+    row_span: 1
+    column_span: 1
+    removable: true
+    config:
+      channels:
+        - environment.temperature
+        - environment.humidity
+      columns: 2
+      default_decimals: 1
+      value_font_size: 22
+      show_units: true
+      show_source: true
+      stale_after_s: 10.0
+
+# Per-sensor display options supported by config.display are:
+#   label:       override SensorDefinition.label for this tile only
+#   unit:        override SensorDefinition.unit for this tile only
+#   decimals:    number of fixed decimal places
+#   format:      Python numeric format specification, e.g. '.4g' or '.3f'
+#   font_size:   point size for this channel's numeric value
+#
+# A `format` entry takes precedence over `decimals`.

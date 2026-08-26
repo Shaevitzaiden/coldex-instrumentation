@@ -36,8 +36,17 @@ from .widgets import (
     ValidationPanel,
     ValvePanelCanvas,
 )
-from .widgets.tiles import DashboardWidget, LivePlotTile, LogTile, SensorValuesTile, TileRegistry, TileWidget, ValvePanelTile
-
+from .widgets.tiles import (
+    DashboardWidget,
+    LivePlotTile,
+    LogTile,
+    SensorReadoutTile,
+    SensorValuesTile,
+    TileRegistry,
+    TileWidget,
+    ValvePanelTile,
+    TemperatureMonitorTile,
+)
 
 class MainWindow(QtWidgets.QMainWindow):
     """Dashboard shell containing the valve panel and data-view tiles."""
@@ -282,6 +291,48 @@ class MainWindow(QtWidgets.QMainWindow):
                 data_hub=context.data_hub,
                 sensor_definitions=context.sensor_definitions,
                 channels=list(config.config.get("channels", [])) or list(context.sensor_definitions),
+                removable=config.removable,
+            ),
+        )
+        # Generic card-style numeric readout.  Multiple instances can coexist
+        # and each instance owns an independent channel list and display config.
+        self.tile_registry.register(
+            "sensor_readout",
+            lambda config, context: SensorReadoutTile(
+                tile_id=config.tile_id,
+                title=config.title,
+                data_hub=context.data_hub,
+                sensor_definitions=context.sensor_definitions,
+                channels=list(config.config.get("channels", [])) or list(context.sensor_definitions),
+                columns=int(config.config.get("columns", 2)),
+                default_decimals=int(config.config.get("default_decimals", 2)),
+                value_font_size=int(config.config.get("value_font_size", 24)),
+                show_units=bool(config.config.get("show_units", True)),
+                show_source=bool(config.config.get("show_source", False)),
+                stale_after_s=float(config.config.get("stale_after_s", 0.0)),
+                display=dict(config.config.get("display", {}) or {}),
+                removable=config.removable,
+            ),
+        )
+
+        # Backward-compatible alias for dashboard files created while the
+        # readout was temperature-specific.  New panels should use
+        # ``type: sensor_readout`` instead.
+        self.tile_registry.register(
+            "temperature_monitor",
+            lambda config, context: TemperatureMonitorTile(
+                tile_id=config.tile_id,
+                title=config.title,
+                data_hub=context.data_hub,
+                sensor_definitions=context.sensor_definitions,
+                channels=list(config.config.get("channels", [])),
+                columns=int(config.config.get("columns", 1)),
+                default_decimals=int(config.config.get("default_decimals", 1)),
+                value_font_size=int(config.config.get("value_font_size", 24)),
+                show_units=bool(config.config.get("show_units", True)),
+                show_source=bool(config.config.get("show_source", False)),
+                stale_after_s=float(config.config.get("stale_after_s", 0.0)),
+                display=dict(config.config.get("display", {}) or {}),
                 removable=config.removable,
             ),
         )
@@ -801,9 +852,12 @@ class MainWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
     def _add_dashboard_tile(self) -> None:
         prefix = "tile"
+        default_row, default_column = self.dashboard.first_free_cell()
         dialog = TileConfigDialog(
             sensor_definitions=self.sensor_definitions,
             default_tile_id=self.dashboard.current_config().next_tile_id(prefix),
+            default_row=default_row,
+            default_column=default_column,
             parent=self,
         )
         if dialog.exec_() != QtWidgets.QDialog.Accepted:

@@ -29,14 +29,16 @@ sensors:
   #   enabled: true
   #   default_log: false
 
-  # controller.temperature:
-  #   label: Controller Temperature
-  #   source_device: controller
-  #   source_channel: controller_temperature
-  #   unit: °C
-  #   expected_sampling_hz: 20
-  #   enabled: true
-  #   default_log: false
+  controller.temperature:
+    label: Controller Temperature
+    source_device: controller
+    source_channel: controller_temperature
+    unit: °C
+    expected_sampling_hz: 1
+    enabled: true
+    default_log: false
+    metadata:
+      quantity: temperature
 
   environment.temperature:
     label: Ambient Temperature
@@ -46,6 +48,8 @@ sensors:
     expected_sampling_hz: 5
     enabled: true
     default_log: false
+    metadata:
+      quantity: temperature
 
   # environment.humidity:
   #   label: Relative Humidity
