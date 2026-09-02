@@ -23,6 +23,7 @@ class DataHub(QtCore.QObject):
     log_received = QtCore.pyqtSignal(object)  # LogEvent
     connection_changed = QtCore.pyqtSignal(bool)  # aggregate: any device connected
     device_connection_changed = QtCore.pyqtSignal(str, bool)
+    device_status_changed = QtCore.pyqtSignal(object)  # DeviceStatus
     relay_result_received = QtCore.pyqtSignal(object)
 
     def __init__(
@@ -36,7 +37,12 @@ class DataHub(QtCore.QObject):
         self._started_monotonic = time.monotonic()
         self.latest_values: dict[str, float] = {}
         self.latest_frame: SensorFrame | None = None
+        # Per-device cache complements the historical single ``latest_frame``
+        # attribute and is useful for connectivity/status widgets created after
+        # acquisition has already begun.
+        self.latest_frames: dict[str, SensorFrame] = {}
         self.device_connections: dict[str, bool] = {}
+        self.device_statuses: dict[str, DeviceStatus] = {}
         self.connected = False
 
     @QtCore.pyqtSlot(object)
@@ -44,6 +50,7 @@ class DataHub(QtCore.QObject):
         """Receive a frame from QtDataBridge and notify GUI widgets."""
 
         self.latest_frame = frame
+        self.latest_frames[frame.source_id] = frame
         self.latest_values.update(frame.values)
         self.frame_received.emit(frame)
 
@@ -55,7 +62,9 @@ class DataHub(QtCore.QObject):
 
     @QtCore.pyqtSlot(object)
     def publish_device_status(self, status: DeviceStatus) -> None:
+        self.device_statuses[status.device_id] = status
         self.device_connections[status.device_id] = bool(status.connected)
+        self.device_status_changed.emit(status)
         self.device_connection_changed.emit(status.device_id, bool(status.connected))
         aggregate = any(self.device_connections.values())
         if aggregate != self.connected:

@@ -19,6 +19,7 @@ def run_app(
     dashboard_config_path: str | Path | None = None,
     sensor_config_path: str | Path | None = None,
     device_config_path: str | Path | None = None,
+    actuator_config_path: str | Path | None = None,
     data_root: str | Path | None = None,
 ) -> int:
     """Create and run the Qt application.
@@ -46,6 +47,7 @@ def run_app(
         dashboard_config_path=Path(dashboard_config_path) if dashboard_config_path else None,
         sensor_config_path=Path(sensor_config_path) if sensor_config_path else None,
         device_config_path=Path(device_config_path) if device_config_path else None,
+        actuator_config_path=Path(actuator_config_path) if actuator_config_path else None,
         data_root=Path(data_root) if data_root else None,
     )
     window.show()

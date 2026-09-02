@@ -7,6 +7,7 @@ from typing import Any
 
 from PyQt5 import QtCore, QtWidgets
 
+from .actuators import ActuatorRegistry, load_actuator_definitions, save_actuator_definitions
 from .app_context import AppContext
 from .config_io import load_panel_config, save_panel_config
 from .controllers.pneumatic_controller import PneumaticController
@@ -37,10 +38,13 @@ from .widgets import (
     ValvePanelCanvas,
 )
 from .widgets.tiles import (
+    CrusherControlTile,
     DashboardWidget,
+    DeviceConnectivityTile,
     LivePlotTile,
     LogTile,
     SensorReadoutTile,
+    SensorPlotReadoutTile,
     SensorValuesTile,
     TileRegistry,
     TileWidget,
@@ -60,6 +64,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dashboard_config_path: Path | None = None,
         sensor_config_path: Path | None = None,
         device_config_path: Path | None = None,
+        actuator_config_path: Path | None = None,
         data_root: Path | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
@@ -69,15 +74,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dashboard_config_path = Path(dashboard_config_path or self.config_path.with_name("dashboard.yaml"))
         self.sensor_config_path = Path(sensor_config_path or self.config_path.with_name("sensors.yaml"))
         self.device_config_path = Path(device_config_path or self.config_path.with_name("devices.yaml"))
+        self.actuator_config_path = Path(actuator_config_path or self.config_path.with_name("actuators.yaml"))
         self.data_root = Path(data_root or self.config_path.parent.parent / "recorded_sessions")
 
         self.panel_config: PanelConfig = load_panel_config(self.config_path)
         self.dashboard_config: DashboardConfig = load_dashboard_config(self.dashboard_config_path)
-        self._default_dashboard_config = copy.deepcopy(self.dashboard_config)
         self.sensor_definitions: dict[str, SensorDefinition] = load_sensor_definitions(self.sensor_config_path)
         self.device_definitions: dict[str, DeviceDefinition] = load_device_definitions(self.device_config_path)
+        self.actuator_registry = ActuatorRegistry(
+            load_actuator_definitions(self.actuator_config_path).values(),
+            relay_count=24,
+            known_device_ids=self.device_definitions.keys(),
+            parent=self,
+        )
+
+        # Dirty flags are initialized *before* legacy migration because migration
+        # may modify three different persistent documents: valve_panel.yaml,
+        # dashboard.yaml, and the new central actuators.yaml.  Keeping those
+        # flags separate ensures the user is prompted to save the exact files
+        # that changed during a backwards-compatible load.
         self._dirty = False
         self._dashboard_dirty = False
+        self._actuator_dirty = False
+        panel_migrated, dashboard_migrated, actuators_migrated = (
+            self._migrate_legacy_actuator_bindings()
+        )
+        self._dirty = panel_migrated
+        self._dashboard_dirty = dashboard_migrated
+        self._actuator_dirty = actuators_migrated
+
+        # Reset Dashboard Layout should restore the *post-migration* schema.
+        # Copying before legacy relay migration could reintroduce relay_number
+        # fields into crusher configs later in the same application run.
+        self._default_dashboard_config = copy.deepcopy(self.dashboard_config)
+
+        # Connect only after startup migration.  The migration routine reports
+        # its dirty state explicitly, while normal runtime edits are tracked by
+        # this signal.
+        self.actuator_registry.changed.connect(self._on_actuator_registry_changed)
         self._save_close_confirmed = False
         self._shutdown_complete = False
 
@@ -123,6 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.device_manager = DeviceManager(
             device_definitions=self.device_definitions,
             sensor_definitions=self.sensor_definitions,
+            actuator_registry=self.actuator_registry,
             communicators=communicator_map,
             stream_hub=self.stream_hub,
             parent=self,
@@ -133,6 +168,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.controller = PneumaticController(
             panel_config=self.panel_config,
+            actuator_registry=self.actuator_registry,
             communicator=self.device_manager,
             logger=self.logger,
         )
@@ -140,7 +176,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(self.panel_config.title)
         self.resize(1500, 900)
 
-        self.canvas = ValvePanelCanvas(panel_config=self.panel_config, controller=self.controller)
+        self.canvas = ValvePanelCanvas(
+            panel_config=self.panel_config,
+            actuator_registry=self.actuator_registry,
+            controller=self.controller,
+        )
         self.canvas.message.connect(self.statusBar().showMessage)
         self.canvas.pipe_mode_changed.connect(self._on_pipe_mode_changed)
         self.canvas.edit_requested.connect(self._on_canvas_edit_requested)
@@ -148,14 +188,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.selection_items_changed.connect(self._on_selection_items_changed)
         self.canvas.history_changed.connect(self._on_history_changed)
 
-        self.properties_panel = PropertiesPanel()
+        self.properties_panel = PropertiesPanel(
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
+        )
         self.properties_panel.set_panel_config(self.panel_config)
         self.properties_panel.element_changed.connect(self.canvas.update_element)
         self.properties_panel.pipe_changed.connect(self.canvas.update_pipe)
         self.properties_panel.delete_requested.connect(self.canvas.delete_selected)
         self.properties_panel.rotate_requested.connect(self.canvas.rotate_selected)
 
-        self.validation_panel = ValidationPanel(relay_count=24)
+        self.validation_panel = ValidationPanel(
+            actuator_registry=self.actuator_registry,
+            relay_count=self.actuator_registry.relay_count,
+        )
         self.validation_panel.set_panel_config(self.panel_config)
 
         # Valve-layout support panels remain ordinary edit-only docks. They are
@@ -194,6 +240,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.app_context = AppContext(
             panel_config=self.panel_config,
+            actuator_registry=self.actuator_registry,
             controller=self.controller,
             data_hub=self.data_hub,
             stream_hub=self.stream_hub,
@@ -230,9 +277,143 @@ class MainWindow(QtWidgets.QMainWindow):
                 "dashboard_config": str(self.dashboard_config_path),
                 "sensor_config": str(self.sensor_config_path),
                 "device_config": str(self.device_config_path),
+                "actuator_config": str(self.actuator_config_path),
             },
         )
         QtCore.QTimer.singleShot(0, self.device_manager.start)
+
+    def _migrate_legacy_actuator_bindings(self) -> tuple[bool, bool, bool]:
+        """Import relay bindings from older valve/dashboard files once.
+
+        Returns ``(panel_changed, dashboard_changed, actuators_changed)`` so
+        callers can mark the correct persistent files dirty.
+
+        The migration is intentionally lossless: old relay numbers are copied
+        into the central registry, then removed from the in-memory legacy
+        metadata/config so the next save produces the new authoritative schema.
+        Existing physical conflicts are preserved with ``allow_conflict=True``
+        so the validation panel can surface them instead of silently changing
+        hardware assignments.
+        """
+
+        command_targets = [
+            definition.device_id
+            for definition in self.device_definitions.values()
+            if definition.command_target
+        ]
+        default_device = command_targets[0] if command_targets else "controller"
+
+        panel_changed = False
+        dashboard_changed = False
+        actuators_changed = False
+
+        # Older valve_panel.yaml files stored relay_number directly on each
+        # visual element.  The visual element now stores only actuator_id.
+        for element in self.panel_config.elements:
+            actuator_id = element.actuator_id or element.id
+            if element.actuator_id != actuator_id:
+                element.actuator_id = actuator_id
+                panel_changed = True
+
+            had_legacy_relay = "_legacy_relay_number" in element.metadata
+            legacy_relay = element.metadata.pop("_legacy_relay_number", None)
+            if had_legacy_relay:
+                panel_changed = True
+
+            definition = self.actuator_registry.maybe_get(actuator_id)
+            if definition is None:
+                self.actuator_registry.ensure(
+                    actuator_id,
+                    label=element.label,
+                    kind=element.element_type,
+                    device_id=str(element.metadata.get("device_id", default_device)),
+                    relay_number=(int(legacy_relay) if legacy_relay is not None else None),
+                    enabled=element.enabled,
+                    default_active=element.initially_active,
+                    emit=False,
+                )
+                actuators_changed = True
+            elif definition.relay_number is None and legacy_relay is not None:
+                self.actuator_registry.update_binding(
+                    actuator_id,
+                    device_id=definition.device_id or default_device,
+                    relay_number=int(legacy_relay),
+                    allow_conflict=True,
+                    allow_unknown_device=True,
+                )
+                actuators_changed = True
+
+        # Crusher bindings were historically stored directly in dashboard.yaml.
+        # The dashboard now stores logical actuator IDs only.
+        for tile in self.dashboard_config.tiles:
+            if tile.tile_type != "crusher_control":
+                continue
+
+            if "device_id" in tile.config:
+                legacy_device = str(tile.config.pop("device_id"))
+                dashboard_changed = True
+            else:
+                legacy_device = default_device
+
+            for index, crusher in enumerate(tile.config.get("crushers", []), start=1):
+                crusher_id = str(crusher.get("id", f"crusher_{index}"))
+                actuator_id = str(crusher.get("actuator_id", crusher_id))
+                if crusher.get("actuator_id") != actuator_id:
+                    crusher["actuator_id"] = actuator_id
+                    dashboard_changed = True
+
+                had_legacy_relay = "relay_number" in crusher
+                legacy_relay = crusher.pop("relay_number", None)
+                if had_legacy_relay:
+                    dashboard_changed = True
+
+                definition = self.actuator_registry.maybe_get(actuator_id)
+                if definition is None:
+                    self.actuator_registry.ensure(
+                        actuator_id,
+                        label=str(crusher.get("label", f"Crusher {index}")),
+                        kind="crusher_solenoid",
+                        device_id=legacy_device,
+                        relay_number=(
+                            int(legacy_relay)
+                            if legacy_relay not in (None, "", 0, "0")
+                            else None
+                        ),
+                        # A migrated crusher that has a real relay is considered
+                        # commissioned.  An unbound placeholder remains disabled.
+                        enabled=legacy_relay not in (None, "", 0, "0"),
+                        default_active=True,
+                        emit=False,
+                    )
+                    actuators_changed = True
+                elif (
+                    definition.relay_number is None
+                    and legacy_relay not in (None, "", 0, "0")
+                ):
+                    self.actuator_registry.update_binding(
+                        actuator_id,
+                        device_id=legacy_device,
+                        relay_number=int(legacy_relay),
+                        allow_conflict=True,
+                        allow_unknown_device=True,
+                    )
+                    actuators_changed = True
+
+        return panel_changed, dashboard_changed, actuators_changed
+
+    @QtCore.pyqtSlot()
+    def _on_actuator_registry_changed(self) -> None:
+        self._actuator_dirty = True
+        if hasattr(self, "validation_panel"):
+            self.validation_panel.refresh()
+        if hasattr(self, "properties_panel"):
+            self.properties_panel.refresh()
+        if hasattr(self, "canvas"):
+            self.canvas.update()
+        if hasattr(self, "statusBar"):
+            self.statusBar().showMessage("Actuator registry changed")
+        if hasattr(self, "panel_config"):
+            self._update_window_title()
 
     def set_communicator(self, communicator: Any | None, device_id: str | None = None) -> None:
         """Replace one live device communicator after startup.
@@ -315,6 +496,30 @@ class MainWindow(QtWidgets.QMainWindow):
             ),
         )
 
+        # Combined current-value + live-plot tile.  Unlike LivePlotTile, this
+        # class intentionally accepts only one compatible measurement/unit
+        # group so all curves can share one meaningful y-axis.
+        self.tile_registry.register(
+            "sensor_plot_readout",
+            lambda config, context: SensorPlotReadoutTile(
+                tile_id=config.tile_id,
+                title=config.title,
+                data_hub=context.data_hub,
+                sensor_definitions=context.sensor_definitions,
+                channels=list(config.config.get("channels", [])),
+                history_seconds=float(config.config.get("history_seconds", 30.0)),
+                readout_columns=int(config.config.get("readout_columns", 3)),
+                default_decimals=int(config.config.get("default_decimals", 2)),
+                value_font_size=int(config.config.get("value_font_size", 20)),
+                show_units=bool(config.config.get("show_units", True)),
+                show_source=bool(config.config.get("show_source", False)),
+                stale_after_s=float(config.config.get("stale_after_s", 0.0)),
+                display=dict(config.config.get("display", {}) or {}),
+                y_label=config.config.get("y_label"),
+                removable=config.removable,
+            ),
+        )
+
         # Backward-compatible alias for dashboard files created while the
         # readout was temperature-specific.  New panels should use
         # ``type: sensor_readout`` instead.
@@ -336,6 +541,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 removable=config.removable,
             ),
         )
+        # Relay-driven crusher controls.  These commands share the controller
+        # worker with the pneumatic valve panel but keep their own dashboard
+        # configuration and element IDs.
+        self.tile_registry.register(
+            "crusher_control",
+            lambda config, context: self._make_crusher_control_tile(config),
+        )
+
+        self.tile_registry.register(
+            "device_connectivity",
+            lambda config, context: DeviceConnectivityTile(
+                tile_id=config.tile_id,
+                title=config.title,
+                data_hub=context.data_hub,
+                device_definitions=self.device_definitions,
+                device_ids=list(config.config.get("devices", [])) or None,
+                rate_window_s=float(config.config.get("rate_window_s", 5.0)),
+                removable=config.removable,
+            ),
+        )
+
         self.tile_registry.register(
             "log",
             lambda config, context: LogTile(
@@ -348,6 +574,51 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tile_registry.register(
             "recording",
             lambda config, context: self._make_recording_tile(config),
+        )
+
+    def _make_crusher_control_tile(self, config: DashboardTileConfig) -> CrusherControlTile:
+        """Create a crusher tile backed by logical actuator IDs."""
+
+        # Old dashboard files stored device_id/relay_number on each crusher.
+        # Migrate those fields into the registry once and leave the tile config
+        # referencing only the logical actuator IDs.
+        default_device = str(
+            config.config.get("device_id", self.device_manager.default_command_device_id)
+        )
+        for index, raw in enumerate(config.config.get("crushers", []), start=1):
+            crusher = dict(raw)
+            crusher_id = str(crusher.get("id", f"crusher_{index}"))
+            actuator_id = str(crusher.get("actuator_id", crusher_id))
+            raw["actuator_id"] = actuator_id
+            relay = crusher.get("relay_number")
+            definition = self.actuator_registry.maybe_get(actuator_id)
+            if definition is None:
+                self.actuator_registry.ensure(
+                    actuator_id,
+                    label=str(crusher.get("label", f"Crusher {index}")),
+                    kind="crusher_solenoid",
+                    device_id=default_device,
+                    relay_number=(int(relay) if relay not in (None, "", 0, "0") else None),
+                )
+            elif definition.relay_number is None and relay not in (None, "", 0, "0"):
+                self.actuator_registry.update_binding(
+                    actuator_id,
+                    device_id=default_device,
+                    relay_number=int(relay),
+                    allow_conflict=True,
+                )
+            raw.pop("relay_number", None)
+        config.config.pop("device_id", None)
+
+        return CrusherControlTile(
+            tile_id=config.tile_id,
+            title=config.title,
+            device_manager=self.device_manager,
+            actuator_registry=self.actuator_registry,
+            data_hub=self.data_hub,
+            crushers=list(config.config.get("crushers", [])),
+            initialize_retracted=bool(config.config.get("initialize_retracted", True)),
+            removable=config.removable,
         )
 
     def _make_recording_tile(self, config: DashboardTileConfig) -> TileWidget:
@@ -610,12 +881,12 @@ class MainWindow(QtWidgets.QMainWindow):
     # File/config actions
     # ------------------------------------------------------------------
     def _maybe_save_dirty(self) -> bool:
-        if not self._dirty:
+        if not self._dirty and not self._actuator_dirty:
             return True
         response = QtWidgets.QMessageBox.question(
             self,
-            "Save valve-layout changes?",
-            "The valve layout has unsaved changes. Save before continuing?",
+            "Save valve/actuator changes?",
+            "The valve layout or actuator registry has unsaved changes. Save before continuing?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel,
         )
         if response == QtWidgets.QMessageBox.Cancel:
@@ -653,21 +924,43 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _load_config(self, path: Path) -> None:
         config = load_panel_config(path)
+
+        # If the user answered "No" to the preceding save prompt, actuator
+        # edits are still present in memory.  Reload the authoritative registry
+        # before applying the new panel so "No" really means discard them.
+        # If the user chose "Yes", _save_layout() already cleared this flag and
+        # no reload is necessary.
+        if self._actuator_dirty:
+            self.actuator_registry.replace_all(
+                load_actuator_definitions(self.actuator_config_path).values()
+            )
+            self._actuator_dirty = False
+
         self.config_path = path
         self.panel_config = config
+        panel_migrated, dashboard_migrated, actuators_migrated = (
+            self._migrate_legacy_actuator_bindings()
+        )
         self.app_context.panel_config = config
         self.controller.set_panel_config(config)
         self.canvas.set_panel_config(config)
         self.properties_panel.set_panel_config(config)
         self.validation_panel.set_panel_config(config)
-        self._dirty = False
+
+        # A freshly loaded new-schema panel is clean.  A legacy panel/dashboard
+        # remains dirty only when migration modified that persistent document.
+        self._dirty = panel_migrated
+        self._dashboard_dirty = self._dashboard_dirty or dashboard_migrated
+        self._actuator_dirty = actuators_migrated
         self._update_window_title()
         self.statusBar().showMessage(f"Loaded {path}")
         self.data_hub.log(f"User loaded valve layout {path}", source="user.layout")
 
     def _save_layout(self) -> None:
         save_panel_config(self.panel_config, self.config_path)
+        save_actuator_definitions(self.actuator_registry.all(), self.actuator_config_path)
         self._dirty = False
+        self._actuator_dirty = False
         self._update_window_title()
         self.statusBar().showMessage(f"Saved {self.config_path}")
         self.data_hub.log(f"User saved valve layout {self.config_path}", source="user.layout")
@@ -687,7 +980,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _save_dashboard_layout(self) -> None:
         self.dashboard_config = self.dashboard.current_config()
         save_dashboard_config(self.dashboard_config, self.dashboard_config_path)
+        save_actuator_definitions(self.actuator_registry.all(), self.actuator_config_path)
         self._dashboard_dirty = False
+        self._actuator_dirty = False
         self._update_window_title()
         self.statusBar().showMessage(f"Saved dashboard layout {self.dashboard_config_path}")
         self.data_hub.log(
@@ -778,7 +1073,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_window_title()
 
     def _update_window_title(self) -> None:
-        markers = ("*" if self._dirty else "") + ("◆" if self._dashboard_dirty else "")
+        markers = ("*" if self._dirty else "") + ("A" if self._actuator_dirty else "") + ("◆" if self._dashboard_dirty else "")
         self.setWindowTitle(f"{markers}{self.panel_config.title} — {self.config_path.name}")
 
     # ------------------------------------------------------------------
@@ -789,6 +1084,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.edit_layout_action.setChecked(True)
         dialog = ElementDialog(
             panel_config=self.panel_config,
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
             default_center=self.canvas.center_of_visible_scene(),
             parent=self,
         )
@@ -801,7 +1098,13 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         element = self.canvas.selected_element()
         if element is not None:
-            dialog = ElementDialog(panel_config=self.panel_config, existing=element, parent=self)
+            dialog = ElementDialog(
+                panel_config=self.panel_config,
+                actuator_registry=self.actuator_registry,
+                device_definitions=self.device_definitions,
+                existing=element,
+                parent=self,
+            )
             if dialog.exec_() == QtWidgets.QDialog.Accepted:
                 self.canvas.update_element(element.id, dialog.result_element())
             return
@@ -855,6 +1158,8 @@ class MainWindow(QtWidgets.QMainWindow):
         default_row, default_column = self.dashboard.first_free_cell()
         dialog = TileConfigDialog(
             sensor_definitions=self.sensor_definitions,
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
             default_tile_id=self.dashboard.current_config().next_tile_id(prefix),
             default_row=default_row,
             default_column=default_column,
@@ -880,6 +1185,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         dialog = TileConfigDialog(
             sensor_definitions=self.sensor_definitions,
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
             existing=config,
             parent=self,
         )

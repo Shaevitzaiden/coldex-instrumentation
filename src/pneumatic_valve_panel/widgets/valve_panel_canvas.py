@@ -6,6 +6,7 @@ from typing import Literal
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+from ..actuators import ActuatorRegistry
 from ..controllers.pneumatic_controller import PneumaticController
 from ..models import ActuatedElementConfig, PanelConfig, PipeConfig, ValveTypeSpec
 
@@ -30,11 +31,13 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         *,
         panel_config: PanelConfig,
         controller: PneumaticController | None = None,
+        actuator_registry: ActuatorRegistry | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.panel_config = panel_config
         self.controller = controller
+        self.actuator_registry = actuator_registry
 
         self._edit_mode = False
         self._runtime_interaction_enabled = True
@@ -945,9 +948,31 @@ class ValvePanelCanvas(QtWidgets.QWidget):
             self._draw_lock_icon(painter, element)
 
         if self._edit_mode:
-            relay_text = f"R{element.relay_number}" if element.relay_number is not None else "R?"
+            # The visual panel references a logical actuator.  Resolve the
+            # current physical binding from the central registry only for this
+            # editor annotation; the panel YAML itself no longer owns relays.
+            actuator = (
+                self.actuator_registry.maybe_get(element.actuator_id)
+                if self.actuator_registry is not None
+                else None
+            )
+            if actuator is None:
+                binding_text = "A? / R?"
+            elif actuator.relay_number is None:
+                binding_text = f"{actuator.actuator_id} / {actuator.device_id} R?"
+            else:
+                binding_text = (
+                    f"{actuator.actuator_id} / {actuator.device_id} "
+                    f"R{actuator.relay_number}"
+                )
             painter.setPen(QtGui.QColor(80, 80, 80))
-            painter.drawText(QtCore.QPointF(element.center[0] - element.size[0] / 2.0, element.center[1] + element.size[1] / 2.0 + 14), relay_text)
+            painter.drawText(
+                QtCore.QPointF(
+                    element.center[0] - element.size[0] / 2.0,
+                    element.center[1] + element.size[1] / 2.0 + 14,
+                ),
+                binding_text,
+            )
 
     def _draw_rubber_band(self, painter: QtGui.QPainter) -> None:
         rect = QtCore.QRectF(self._rubber_start, self._rubber_current).normalized()

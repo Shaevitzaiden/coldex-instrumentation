@@ -1,0 +1,26 @@
+# Crusher panels reference logical actuator IDs only.  Assign the physical
+# device/relay for crusher_1..crusher_4 in config/actuators.yaml or through the
+# Crusher Controls dashboard configuration dialog.
+- id: crushers_main
+  type: crusher_control
+  title: Ice Crushers
+  row: 2
+  column: 0
+  row_span: 1
+  column_span: 2
+  removable: true
+  config:
+    initialize_retracted: true
+    crushers:
+      - id: crusher_1
+        label: Crusher 1
+        actuator_id: crusher_1
+      - id: crusher_2
+        label: Crusher 2
+        actuator_id: crusher_2
+      - id: crusher_3
+        label: Crusher 3
+        actuator_id: crusher_3
+      - id: crusher_4
+        label: Crusher 4
+        actuator_id: crusher_4

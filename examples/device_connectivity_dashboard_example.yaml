@@ -1,0 +1,10 @@
+# Add this tile anywhere there is a free dashboard grid cell.
+- id: device_connectivity
+  type: device_connectivity
+  title: Device Connectivity
+  row: 2
+  column: 0
+  row_span: 1
+  column_span: 2
+  removable: true
+  config: {}

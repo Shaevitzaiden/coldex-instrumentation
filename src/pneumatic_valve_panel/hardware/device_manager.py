@@ -17,6 +17,7 @@ from typing import Any, Iterable
 
 from PyQt5 import QtCore
 
+from ..actuators import ActuatorRegistry
 from ..data.models import (
     CommandResult,
     DeviceCommand,
@@ -462,6 +463,7 @@ class DeviceManager(QtCore.QObject):
         *,
         device_definitions: dict[str, DeviceDefinition],
         sensor_definitions: dict[str, SensorDefinition],
+        actuator_registry: ActuatorRegistry,
         communicators: dict[str, Any] | None,
         stream_hub: StreamHub,
         parent: QtCore.QObject | None = None,
@@ -469,6 +471,7 @@ class DeviceManager(QtCore.QObject):
         super().__init__(parent)
         self.device_definitions = dict(device_definitions)
         self.sensor_definitions = dict(sensor_definitions)
+        self.actuator_registry = actuator_registry
         self.communicators = dict(communicators or {})
         self.stream_hub = stream_hub
         self.services: dict[str, SerialDeviceService] = {}
@@ -535,8 +538,46 @@ class DeviceManager(QtCore.QObject):
             raise KeyError(f"No enabled device service named {command.device_id!r}") from exc
         service.submit(command)
 
-    # The next two methods intentionally match PneumaticController's existing
-    # communicator interface, making DeviceManager a drop-in replacement.
+    def set_actuator_state(
+        self,
+        *,
+        actuator_id: str,
+        is_active: bool,
+        element_id: str | None = None,
+        element_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Resolve a logical actuator and queue its current physical binding.
+
+        This is the preferred command API for every GUI/automation component.
+        No caller needs to know the device ID or relay number.  Because the
+        registry is resolved here at command time, relay edits take effect
+        immediately across the whole application.
+        """
+
+        definition = self.actuator_registry.get(actuator_id)
+        if not definition.enabled:
+            raise RuntimeError(f"Actuator {actuator_id!r} is disabled")
+        if definition.relay_number is None:
+            raise RuntimeError(f"Actuator {actuator_id!r} has no relay binding")
+
+        merged_metadata = dict(definition.metadata)
+        merged_metadata.update(dict(metadata or {}))
+        merged_metadata["actuator_id"] = definition.actuator_id
+        merged_metadata["actuator_kind"] = definition.kind
+        merged_metadata["device_id"] = definition.device_id
+        merged_metadata.setdefault("label", definition.label)
+
+        self.set_element_state(
+            element_id=str(element_id or definition.actuator_id),
+            element_type=str(element_type or definition.kind),
+            is_active=bool(is_active),
+            relay_number=definition.relay_number,
+            metadata=merged_metadata,
+        )
+
+    # The following methods retain the legacy relay-addressed API for external
+    # integrations, but application widgets should prefer set_actuator_state().
     def set_element_state(
         self,
         *,
@@ -563,16 +604,28 @@ class DeviceManager(QtCore.QObject):
             created_monotonic_ns=time.monotonic_ns(),
         )
         self.submit_command(command)
+
+        # Most legacy elements are pneumatic valves, but this generic command
+        # path is also used by other relay-driven hardware (for example the
+        # crusher-control tile).  Callers may therefore provide a human-facing
+        # state label instead of forcing every log message to say OPEN/CLOSED.
+        requested_state_label = str(
+            metadata.get(
+                "requested_state_label",
+                "ACTIVE/OPEN" if is_active else "INACTIVE/CLOSED",
+            )
+        )
+        log_source = str(metadata.get("origin", "user.command"))
+
         self.stream_hub.publish_log(
             LogEvent(
                 timestamp_utc=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
                 elapsed_s=(time.monotonic_ns() - self.stream_hub.session_origin_monotonic_ns)
                 / 1_000_000_000.0,
                 level="INFO",
-                source="user.command",
+                source=log_source,
                 message=(
-                    f"User requested {element_id} -> "
-                    f"{'ACTIVE/OPEN' if is_active else 'INACTIVE/CLOSED'} on {device_id}"
+                    f"Requested {element_id} -> {requested_state_label} on {device_id}"
                 ),
                 details={
                     "device_id": device_id,

@@ -1,0 +1,57 @@
+# Copy one of these tile entries into dashboard.tiles in config/dashboard.yaml.
+# Choose free grid cells/spans for your particular dashboard.
+examples:
+  temperature_plot_and_values:
+    id: temperatures_with_plot
+    type: sensor_plot_readout
+    title: Temperatures
+    row: 2
+    column: 0
+    row_span: 1
+    column_span: 2
+    removable: true
+    config:
+      channels:
+        - controller.temperature
+        - environment.temperature
+      quantity: temperature
+      unit: "°C"
+      y_label: Temperature
+      history_seconds: 60
+      readout_columns: 2
+      default_decimals: 1
+      value_font_size: 20
+      show_units: true
+      show_source: true
+      stale_after_s: 5
+      display:
+        controller.temperature:
+          label: Controller
+        environment.temperature:
+          label: Ambient
+
+  # Example for a future pair of pressure sensors after those definitions are
+  # enabled in sensors.yaml and marked metadata.quantity: pressure.
+  pressure_plot_and_values:
+    id: pressures_with_plot
+    type: sensor_plot_readout
+    title: Pressures
+    row: 2
+    column: 0
+    row_span: 1
+    column_span: 2
+    removable: true
+    config:
+      channels:
+        - controller.pressure_supply
+        - controller.pressure_output
+      quantity: pressure
+      unit: kPa
+      y_label: Pressure
+      history_seconds: 30
+      readout_columns: 2
+      default_decimals: 1
+      value_font_size: 20
+      show_units: true
+      show_source: false
+      stale_after_s: 3

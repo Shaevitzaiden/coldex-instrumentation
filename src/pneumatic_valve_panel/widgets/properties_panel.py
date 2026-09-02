@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from PyQt5 import QtCore, QtWidgets
 
+from ..actuators import ActuatorDefinition, ActuatorRegistry
+from ..data.models import DeviceDefinition
 from ..models import ActuatedElementConfig, PanelConfig, PipeConfig
 
 SelectionItem = tuple[str, str]
@@ -15,8 +17,16 @@ class PropertiesPanel(QtWidgets.QWidget):
     delete_requested = QtCore.pyqtSignal()
     rotate_requested = QtCore.pyqtSignal(float)
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        actuator_registry: ActuatorRegistry,
+        device_definitions: dict[str, DeviceDefinition],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
+        self.actuator_registry = actuator_registry
+        self.device_definitions = dict(device_definitions)
         self.panel_config: PanelConfig | None = None
         self.selected_items: list[SelectionItem] = []
         self._loading = False
@@ -101,7 +111,16 @@ class PropertiesPanel(QtWidgets.QWidget):
         self.element_id_edit = QtWidgets.QLineEdit()
         self.element_label_edit = QtWidgets.QLineEdit()
         self.element_type_combo = QtWidgets.QComboBox()
+        self.actuator_id_edit = QtWidgets.QLineEdit()
+        self.device_combo = QtWidgets.QComboBox()
+        for device_id, definition in self.device_definitions.items():
+            if definition.enabled:
+                self.device_combo.addItem(device_id, device_id)
+        if self.device_combo.count() == 0:
+            self.device_combo.addItem("controller", "controller")
         self.relay_combo = QtWidgets.QComboBox()
+        self.device_combo.currentIndexChanged.connect(self._refresh_relay_combo_for_device)
+        self.actuator_id_edit.editingFinished.connect(self._refresh_actuator_binding_fields)
         self.element_x = self._double_spin(-10000, 10000, 1)
         self.element_y = self._double_spin(-10000, 10000, 1)
         self.element_w = self._double_spin(10, 1000, 1)
@@ -116,6 +135,8 @@ class PropertiesPanel(QtWidgets.QWidget):
         form.addRow("ID", self.element_id_edit)
         form.addRow("Label", self.element_label_edit)
         form.addRow("Type", self.element_type_combo)
+        form.addRow("Actuator ID", self.actuator_id_edit)
+        form.addRow("Device", self.device_combo)
         form.addRow("Relay", self.relay_combo)
         form.addRow("X", self.element_x)
         form.addRow("Y", self.element_y)
@@ -199,18 +220,27 @@ class PropertiesPanel(QtWidgets.QWidget):
         if index >= 0:
             self.element_type_combo.setCurrentIndex(index)
 
-    def _populate_relay_combo(self, current_relay: int | None) -> None:
+    def _populate_relay_combo(self, actuator_id: str | None) -> None:
         self.relay_combo.clear()
         self.relay_combo.addItem("None / unbound", None)
-        if self.panel_config is None:
-            return
-        usage = self.panel_config.relay_usage()
-        for relay in range(1, 25):
-            assigned = [element.id for element in usage.get(relay, [])]
+        device_id = str(self.device_combo.currentData() or "controller")
+        actuator = self.actuator_registry.maybe_get(actuator_id)
+        current_relay = (
+            actuator.relay_number
+            if actuator is not None and actuator.device_id == device_id
+            else None
+        )
+        usage = self.actuator_registry.relay_usage(device_id)
+        for relay in range(1, self.actuator_registry.relay_count + 1):
+            owners = [
+                owner.actuator_id
+                for owner in usage.get((device_id, relay), [])
+                if owner.actuator_id != actuator_id
+            ]
             if current_relay == relay:
                 label = f"Relay {relay} — current"
-            elif assigned:
-                label = f"Relay {relay} — used by {', '.join(assigned)}"
+            elif owners:
+                label = f"Relay {relay} — used by {', '.join(owners)}"
             else:
                 label = f"Relay {relay} — available"
             self.relay_combo.addItem(label, relay)
@@ -218,12 +248,35 @@ class PropertiesPanel(QtWidgets.QWidget):
         if index >= 0:
             self.relay_combo.setCurrentIndex(index)
 
+    def _refresh_relay_combo_for_device(self) -> None:
+        if self._loading:
+            return
+        self._populate_relay_combo(self.actuator_id_edit.text().strip() or None)
+
+    def _refresh_actuator_binding_fields(self) -> None:
+        if self._loading:
+            return
+        actuator_id = self.actuator_id_edit.text().strip()
+        actuator = self.actuator_registry.maybe_get(actuator_id)
+        if actuator is not None:
+            index = self.device_combo.findData(actuator.device_id)
+            if index >= 0:
+                self.device_combo.setCurrentIndex(index)
+        self._populate_relay_combo(actuator_id or None)
+
     def _populate_element(self, element: ActuatedElementConfig) -> None:
         self.element_original_id = element.id
         self.element_id_edit.setText(element.id)
         self.element_label_edit.setText(element.label)
         self._populate_type_combo(element.element_type)
-        self._populate_relay_combo(element.relay_number)
+        actuator_id = element.actuator_id or element.id
+        self.actuator_id_edit.setText(actuator_id)
+        actuator = self.actuator_registry.maybe_get(actuator_id)
+        if actuator is not None:
+            device_index = self.device_combo.findData(actuator.device_id)
+            if device_index >= 0:
+                self.device_combo.setCurrentIndex(device_index)
+        self._populate_relay_combo(actuator_id)
         self.element_x.setValue(element.center[0])
         self.element_y.setValue(element.center[1])
         self.element_w.setValue(element.size[0])
@@ -254,6 +307,50 @@ class PropertiesPanel(QtWidgets.QWidget):
         if duplicate:
             QtWidgets.QMessageBox.warning(self, "Duplicate element", f"Element ID {element_id!r} already exists.")
             return
+        actuator_id = self.actuator_id_edit.text().strip()
+        if not actuator_id:
+            QtWidgets.QMessageBox.warning(self, "Invalid actuator", "Actuator ID cannot be empty.")
+            return
+        for element in self.panel_config.elements:
+            if element.id != self.element_original_id and element.actuator_id == actuator_id:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Actuator already used",
+                    f"Actuator {actuator_id!r} is already referenced by {element.id!r}.",
+                )
+                return
+        device_id = str(self.device_combo.currentData() or "controller")
+        relay = self.relay_combo.currentData()
+        existing_actuator = self.actuator_registry.maybe_get(actuator_id)
+        if (
+            existing_actuator is not None
+            and existing_actuator.kind in {"crusher_solenoid", "crusher"}
+            and self.panel_config.element_by_id(self.element_original_id).actuator_id != actuator_id
+        ):
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Actuator belongs to crusher hardware",
+                f"Actuator {actuator_id!r} is reserved for crusher control.",
+            )
+            return
+
+        candidate = ActuatorDefinition(
+            actuator_id=actuator_id,
+            label=self.element_label_edit.text().strip() or element_id,
+            kind=str(self.element_type_combo.currentData()),
+            device_id=device_id,
+            relay_number=relay,
+            enabled=self.element_enabled.isChecked(),
+            default_active=self.element_state.isChecked(),
+            metadata=(dict(existing_actuator.metadata) if existing_actuator else {}),
+        )
+        try:
+            self.actuator_registry.upsert(candidate)
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(self, "Invalid actuator binding", str(exc))
+            return
+        original_metadata = dict(self.panel_config.element_by_id(self.element_original_id).metadata)
+        original_metadata.pop("_legacy_relay_number", None)
         replacement = ActuatedElementConfig(
             id=element_id,
             label=self.element_label_edit.text().strip() or element_id,
@@ -261,11 +358,11 @@ class PropertiesPanel(QtWidgets.QWidget):
             center=(float(self.element_x.value()), float(self.element_y.value())),
             size=(float(self.element_w.value()), float(self.element_h.value())),
             rotation=float(self.element_rotation.value()),
-            relay_number=self.relay_combo.currentData(),
+            actuator_id=actuator_id,
             initially_active=self.element_state.isChecked(),
             enabled=self.element_enabled.isChecked(),
             locked=self.element_locked.isChecked(),
-            metadata=dict(self.panel_config.element_by_id(self.element_original_id).metadata),
+            metadata=original_metadata,
         )
         self.element_changed.emit(self.element_original_id, replacement)
 

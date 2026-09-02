@@ -1,0 +1,84 @@
+schema_version: 1
+actuators:
+  valve_01:
+    label: '1'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 1
+    enabled: true
+    default_active: false
+  valve_02:
+    label: '2'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 2
+    enabled: true
+    default_active: false
+  valve_03:
+    label: '3'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 3
+    enabled: true
+    default_active: false
+  valve_04:
+    label: '4'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 4
+    enabled: true
+    default_active: false
+  valve_05:
+    label: '5'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 5
+    enabled: true
+    default_active: false
+  element_22:
+    label: '22'
+    kind: solenoid_2_way
+    device_id: controller
+    relay_number: 22
+    enabled: true
+    default_active: false
+  crusher_1:
+    label: Crusher 1
+    kind: crusher_solenoid
+    device_id: controller
+    relay_number: 7
+    enabled: true
+    default_active: true
+    metadata:
+      powered_state: raised_retracted
+      unpowered_state: lowered_extended
+  crusher_2:
+    label: Crusher 2
+    kind: crusher_solenoid
+    device_id: controller
+    relay_number: 8
+    enabled: true
+    default_active: true
+    metadata:
+      powered_state: raised_retracted
+      unpowered_state: lowered_extended
+  crusher_3:
+    label: Crusher 3
+    kind: crusher_solenoid
+    device_id: controller
+    relay_number: 9
+    enabled: true
+    default_active: true
+    metadata:
+      powered_state: raised_retracted
+      unpowered_state: lowered_extended
+  crusher_4:
+    label: Crusher 4
+    kind: crusher_solenoid
+    device_id: controller
+    relay_number: 10
+    enabled: true
+    default_active: true
+    metadata:
+      powered_state: raised_retracted
+      unpowered_state: lowered_extended

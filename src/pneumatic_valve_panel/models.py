@@ -63,9 +63,9 @@ class ActuatedElementConfig:
     """A clickable, serial-bound element on the pneumatic panel.
 
     This can represent a solenoid valve, a manual override relay, a pump, a
-    regulator enable line, or any other actuated element. The GUI does not assume
-    the hardware semantics; it only sends ``element_id``, ``state``, and
-    ``relay_number`` through the controller/communicator boundary.
+    regulator enable line, or any other actuated element.  The panel stores a
+    logical ``actuator_id``; physical device/relay routing is owned by the
+    application-wide ActuatorRegistry.
     """
 
     id: str
@@ -74,7 +74,9 @@ class ActuatedElementConfig:
     center: tuple[float, float]
     size: tuple[float, float] = (56.0, 56.0)
     rotation: float = 0.0
-    relay_number: int | None = None
+    # Logical actuator binding.  The physical relay/device now lives in the
+    # central ActuatorRegistry, not in this visual panel document.
+    actuator_id: str | None = None
     initially_active: bool = False
     enabled: bool = True
     locked: bool = False
@@ -89,8 +91,16 @@ class ActuatedElementConfig:
         default_type: str,
     ) -> "ActuatedElementConfig":
         element_id = str(data["id"])
+        # ``relay_number`` was stored directly on panel elements in older
+        # layouts.  Keep it only as migration metadata; new saves write the
+        # logical actuator ID instead.
         relay_value = data.get("relay_number", data.get("relay", data.get("command_id")))
-        relay_number = int(relay_value) if relay_value is not None else None
+        legacy_relay = int(relay_value) if relay_value is not None else None
+        metadata = dict(data.get("metadata", {}))
+        if legacy_relay is not None:
+            metadata.setdefault("_legacy_relay_number", legacy_relay)
+        raw_actuator_id = data.get("actuator_id")
+        actuator_id = str(raw_actuator_id) if raw_actuator_id not in (None, "") else element_id
         return cls(
             id=element_id,
             label=str(data.get("label", element_id)),
@@ -98,11 +108,11 @@ class ActuatedElementConfig:
             center=_as_point(data.get("center", [0, 0]), field_name=f"element {element_id}.center"),
             size=_as_size(data.get("size", default_size), field_name=f"element {element_id}.size"),
             rotation=float(data.get("rotation", 0.0)),
-            relay_number=relay_number,
+            actuator_id=actuator_id,
             initially_active=bool(data.get("initially_active", data.get("initially_open", False))),
             enabled=bool(data.get("enabled", True)),
             locked=bool(data.get("locked", False)),
-            metadata=dict(data.get("metadata", {})),
+            metadata=metadata,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -113,13 +123,17 @@ class ActuatedElementConfig:
             "center": [round(self.center[0], 3), round(self.center[1], 3)],
             "size": [round(self.size[0], 3), round(self.size[1], 3)],
             "rotation": round(self.rotation % 360.0, 3),
-            "relay_number": self.relay_number,
+            "actuator_id": self.actuator_id,
             "initially_active": self.initially_active,
             "enabled": self.enabled,
             "locked": self.locked,
         }
-        if self.metadata:
-            data["metadata"] = dict(self.metadata)
+        public_metadata = {
+            key: value for key, value in self.metadata.items()
+            if not str(key).startswith("_legacy_")
+        }
+        if public_metadata:
+            data["metadata"] = public_metadata
         return data
 
 
@@ -298,43 +312,42 @@ class PanelConfig:
             shape="circle",
         )
 
-    def used_relays(self, *, exclude_element_id: str | None = None) -> set[int]:
-        relays: set[int] = set()
+    def used_actuator_ids(self, *, exclude_element_id: str | None = None) -> set[str]:
+        """Return logical actuator IDs referenced by panel elements."""
+
+        result: set[str] = set()
         for element in self.elements:
             if exclude_element_id is not None and element.id == exclude_element_id:
                 continue
-            if element.relay_number is not None:
-                relays.add(element.relay_number)
-        return relays
+            if element.actuator_id:
+                result.add(element.actuator_id)
+        return result
 
+    def actuator_usage(self) -> dict[str, list[ActuatedElementConfig]]:
+        """Return panel elements grouped by logical actuator ID."""
 
-    def relay_usage(self) -> dict[int, list[ActuatedElementConfig]]:
-        """Return a mapping from relay number to all elements using it."""
-        usage: dict[int, list[ActuatedElementConfig]] = {}
+        usage: dict[str, list[ActuatedElementConfig]] = {}
         for element in self.elements:
-            if element.relay_number is None:
+            if not element.actuator_id:
                 continue
-            usage.setdefault(int(element.relay_number), []).append(element)
+            usage.setdefault(element.actuator_id, []).append(element)
         return usage
 
-    def validate_relays(self, *, relay_count: int = 24) -> list[str]:
-        """Return human-readable validation messages for relay bindings."""
+    def validate_actuator_references(self) -> list[str]:
+        """Validate panel-local actuator references (not physical relay bindings)."""
+
         messages: list[str] = []
-        usage = self.relay_usage()
+        usage = self.actuator_usage()
         for element in self.elements:
-            if element.relay_number is None:
-                messages.append(f"{element.id}: no relay binding")
-            elif not (1 <= int(element.relay_number) <= relay_count):
-                messages.append(f"{element.id}: relay {element.relay_number} outside valid range 1-{relay_count}")
-        for relay, elements in sorted(usage.items()):
+            if not element.actuator_id:
+                messages.append(f"{element.id}: no actuator binding")
+        for actuator_id, elements in sorted(usage.items()):
             if len(elements) > 1:
                 names = ", ".join(element.id for element in elements)
-                messages.append(f"Relay {relay} is assigned to multiple elements: {names}")
+                messages.append(
+                    f"Actuator {actuator_id} is referenced by multiple panel elements: {names}"
+                )
         return messages
-
-    def unused_relays(self, *, relay_count: int = 24) -> list[int]:
-        used = set(self.relay_usage().keys())
-        return [relay for relay in range(1, relay_count + 1) if relay not in used]
 
     def next_element_id(self, prefix: str = "element") -> str:
         existing = {element.id for element in self.elements}

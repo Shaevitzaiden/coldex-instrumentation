@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from .actuators import ActuatorRegistry
 from .controllers.pneumatic_controller import PneumaticController
 from .data import DataHub, SensorDefinition, StreamHub
 from .hardware import DeviceManager
@@ -20,6 +21,7 @@ class AppContext:
     """
 
     panel_config: PanelConfig
+    actuator_registry: ActuatorRegistry
     controller: PneumaticController
     data_hub: DataHub
     stream_hub: StreamHub

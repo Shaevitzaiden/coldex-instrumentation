@@ -10,7 +10,13 @@ streams itself.  ``MainWindow`` later hands the resulting config to
 
 from PyQt5 import QtCore, QtWidgets
 
-from ..data.models import DashboardTileConfig, SensorDefinition
+from ..actuators import ActuatorDefinition, ActuatorRegistry
+from ..data.models import DashboardTileConfig, DeviceDefinition, SensorDefinition
+from ..data.sensor_groups import (
+    available_sensor_groups,
+    sensor_group_key,
+    sensor_group_label,
+)
 
 
 class TileConfigDialog(QtWidgets.QDialog):
@@ -26,11 +32,13 @@ class TileConfigDialog(QtWidgets.QDialog):
         "live_plot",
         "sensor_values",
         "sensor_readout",
+        "sensor_plot_readout",
         "temperature_monitor",  # legacy alias
     }
 
     READOUT_TILE_TYPES = {
         "sensor_readout",
+        "sensor_plot_readout",
         "temperature_monitor",  # legacy alias uses the same display controls
     }
 
@@ -38,6 +46,8 @@ class TileConfigDialog(QtWidgets.QDialog):
         self,
         *,
         sensor_definitions: dict[str, SensorDefinition],
+        actuator_registry: ActuatorRegistry | None = None,
+        device_definitions: dict[str, DeviceDefinition] | None = None,
         existing: DashboardTileConfig | None = None,
         default_tile_id: str = "tile_01",
         default_row: int = 0,
@@ -46,9 +56,11 @@ class TileConfigDialog(QtWidgets.QDialog):
     ) -> None:
         super().__init__(parent)
         self.sensor_definitions = sensor_definitions
+        self.actuator_registry = actuator_registry
+        self.device_definitions = dict(device_definitions or {})
         self.existing = existing
         self.setWindowTitle("Configure Dashboard Panel" if existing else "Add Dashboard Panel")
-        self.resize(470, 610)
+        self.resize(520, 720)
 
         # ------------------------------------------------------------------
         # General tile identity / grid geometry
@@ -61,6 +73,9 @@ class TileConfigDialog(QtWidgets.QDialog):
         self.type_combo.addItem("Terminal-style log", "log")
         self.type_combo.addItem("Latest sensor values (table)", "sensor_values")
         self.type_combo.addItem("Sensor readout cards", "sensor_readout")
+        self.type_combo.addItem("Live plot + current values", "sensor_plot_readout")
+        self.type_combo.addItem("Crusher controls", "crusher_control")
+        self.type_combo.addItem("Device connectivity", "device_connectivity")
 
         # ``temperature_monitor`` is no longer offered for new tiles; the
         # generic sensor readout can do the same thing and much more.  If an old
@@ -115,12 +130,50 @@ class TileConfigDialog(QtWidgets.QDialog):
             "Pressure, flow, temperature, and other units are normally easier to read on separate y-axes."
         )
 
+        # ``sensor_plot_readout`` deliberately uses one y-axis.  The user
+        # therefore chooses one compatible physical measurement group first
+        # (for example Temperature [°C] or Pressure [kPa]); the sensor picker
+        # below then exposes only channels from that group.
+        self.sensor_group_combo = QtWidgets.QComboBox()
+        for group in available_sensor_groups(sensor_definitions.values()):
+            self.sensor_group_combo.addItem(sensor_group_label(group), group)
+
+        # When editing an existing combined tile, restore the group either from
+        # explicit YAML quantity/unit fields or by inferring it from its first
+        # configured channel.
+        if existing and existing.tile_type == "sensor_plot_readout":
+            desired_group = None
+            configured_quantity = str(existing_config.get("quantity", "")).strip()
+            configured_unit = str(existing_config.get("unit", "")).strip()
+            if configured_quantity:
+                for index in range(self.sensor_group_combo.count()):
+                    candidate = self.sensor_group_combo.itemData(index)
+                    if (
+                        candidate.quantity == configured_quantity
+                        and candidate.unit == configured_unit
+                    ):
+                        desired_group = candidate
+                        break
+            if desired_group is None:
+                for sensor_id in existing_config.get("channels", []):
+                    definition = sensor_definitions.get(sensor_id)
+                    if definition is not None:
+                        desired_group = sensor_group_key(definition)
+                        break
+            if desired_group is not None:
+                for index in range(self.sensor_group_combo.count()):
+                    if self.sensor_group_combo.itemData(index) == desired_group:
+                        self.sensor_group_combo.setCurrentIndex(index)
+                        break
+
         # ------------------------------------------------------------------
         # Generic sensor-readout options
         # ------------------------------------------------------------------
         self.readout_columns_spin = QtWidgets.QSpinBox()
         self.readout_columns_spin.setRange(1, 8)
-        self.readout_columns_spin.setValue(int(existing_config.get("columns", 2)))
+        self.readout_columns_spin.setValue(
+            int(existing_config.get("readout_columns", existing_config.get("columns", 2)))
+        )
         self.readout_columns_spin.setToolTip("Number of numeric sensor cards per row.")
 
         self.readout_decimals_spin = QtWidgets.QSpinBox()
@@ -150,6 +203,70 @@ class TileConfigDialog(QtWidgets.QDialog):
         self.readout_stale_spin.setToolTip(
             "Gray a readout after this many seconds without a new sample. Set to 0 to disable."
         )
+
+        # ------------------------------------------------------------------
+        # Crusher-control-specific options
+        # ------------------------------------------------------------------
+        # Crusher tiles reference logical actuator IDs.  Device/relay controls
+        # below edit the same central registry used by the pneumatic element
+        # editor, so there is exactly one authoritative binding per output.
+        self.crusher_initialize_check = QtWidgets.QCheckBox(
+            "Power/retract all crushers when this panel starts"
+        )
+        self.crusher_initialize_check.setChecked(
+            bool(existing_config.get("initialize_retracted", True))
+        )
+
+        configured_crushers = list(existing_config.get("crushers", []))
+        self.crusher_rows: list[tuple[
+            QtWidgets.QWidget, QtWidgets.QLineEdit, QtWidgets.QLineEdit,
+            QtWidgets.QComboBox, QtWidgets.QSpinBox
+        ]] = []
+        for index in range(1, 5):
+            configured = (
+                dict(configured_crushers[index - 1])
+                if index - 1 < len(configured_crushers) else {}
+            )
+            crusher_id = str(configured.get("id", f"crusher_{index}"))
+            actuator_id = str(configured.get("actuator_id", crusher_id))
+            label_edit = QtWidgets.QLineEdit(str(configured.get("label", f"Crusher {index}")))
+            actuator_edit = QtWidgets.QLineEdit(actuator_id)
+            actuator_edit.setToolTip("Logical actuator ID stored in actuators.yaml")
+
+            device_combo = QtWidgets.QComboBox()
+            for device_id, definition in self.device_definitions.items():
+                if definition.enabled:
+                    device_combo.addItem(device_id, device_id)
+            if device_combo.count() == 0:
+                device_combo.addItem("controller", "controller")
+
+            relay_spin = QtWidgets.QSpinBox()
+            relay_spin.setRange(0, self.actuator_registry.relay_count if self.actuator_registry else 24)
+            relay_spin.setSpecialValueText("Unassigned")
+            actuator = self.actuator_registry.maybe_get(actuator_id) if self.actuator_registry else None
+            if actuator is not None:
+                device_index = device_combo.findData(actuator.device_id)
+                if device_index >= 0:
+                    device_combo.setCurrentIndex(device_index)
+                relay_spin.setValue(actuator.relay_number or 0)
+            else:
+                raw_relay = configured.get("relay_number")  # legacy dashboard migration
+                relay_spin.setValue(int(raw_relay) if raw_relay not in (None, "") else 0)
+
+            row_widget = QtWidgets.QWidget()
+            row_layout = QtWidgets.QGridLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(QtWidgets.QLabel("Label"), 0, 0)
+            row_layout.addWidget(label_edit, 0, 1, 1, 3)
+            row_layout.addWidget(QtWidgets.QLabel("Actuator"), 1, 0)
+            row_layout.addWidget(actuator_edit, 1, 1, 1, 3)
+            row_layout.addWidget(QtWidgets.QLabel("Device"), 2, 0)
+            row_layout.addWidget(device_combo, 2, 1)
+            row_layout.addWidget(QtWidgets.QLabel("Relay"), 2, 2)
+            row_layout.addWidget(relay_spin, 2, 3)
+            self.crusher_rows.append(
+                (row_widget, label_edit, actuator_edit, device_combo, relay_spin)
+            )
 
         # ------------------------------------------------------------------
         # Shared sensor channel picker
@@ -201,6 +318,8 @@ class TileConfigDialog(QtWidgets.QDialog):
         form.addRow(self.history_label, self.history_spin)
         self.plot_grouping_label = QtWidgets.QLabel("Plot grouping")
         form.addRow(self.plot_grouping_label, self.group_by_unit_check)
+        self.sensor_group_label_widget = QtWidgets.QLabel("Measurement group")
+        form.addRow(self.sensor_group_label_widget, self.sensor_group_combo)
 
         self.readout_columns_label = QtWidgets.QLabel("Readout columns")
         form.addRow(self.readout_columns_label, self.readout_columns_spin)
@@ -212,6 +331,14 @@ class TileConfigDialog(QtWidgets.QDialog):
         form.addRow(self.readout_stale_label, self.readout_stale_spin)
         form.addRow("", self.readout_show_units_check)
         form.addRow("", self.readout_show_source_check)
+
+        self.crusher_initialize_label = QtWidgets.QLabel("Startup state")
+        form.addRow(self.crusher_initialize_label, self.crusher_initialize_check)
+        self.crusher_row_labels: list[QtWidgets.QLabel] = []
+        for index, (row_widget, _label, _actuator, _device, _relay) in enumerate(self.crusher_rows, start=1):
+            row_label = QtWidgets.QLabel(f"Crusher {index}")
+            self.crusher_row_labels.append(row_label)
+            form.addRow(row_label, row_widget)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addLayout(form)
@@ -230,6 +357,7 @@ class TileConfigDialog(QtWidgets.QDialog):
         # implementation connected to a nonexistent ``_on_type_changed`` method
         # and then called another nonexistent ``_update_type_ui`` method.
         self.type_combo.currentIndexChanged.connect(self._on_tile_type_changed)
+        self.sensor_group_combo.currentIndexChanged.connect(self._filter_sensor_list)
         self._on_tile_type_changed()
 
     # ------------------------------------------------------------------
@@ -243,11 +371,31 @@ class TileConfigDialog(QtWidgets.QDialog):
 
         if tile_type in {"log", "valve_panel", "recording"}:
             config: dict = {}
+        elif tile_type == "device_connectivity":
+            # There are no basic dialog fields for connectivity-specific options
+            # yet, but preserve advanced YAML such as ``devices`` or
+            # ``rate_window_s`` when the tile is repositioned/reconfigured.
+            config = dict(self.existing.config) if self.existing is not None else {}
+        elif tile_type == "crusher_control":
+            config = {
+                "initialize_retracted": self.crusher_initialize_check.isChecked(),
+                "crushers": [
+                    {
+                        "id": f"crusher_{index}",
+                        "label": label_edit.text().strip() or f"Crusher {index}",
+                        "actuator_id": actuator_edit.text().strip() or f"crusher_{index}",
+                    }
+                    for index, (_row, label_edit, actuator_edit, _device, _relay)
+                    in enumerate(self.crusher_rows, start=1)
+                ],
+            }
         else:
             config = {"channels": channels}
 
-        if tile_type == "live_plot":
+        if tile_type in {"live_plot", "sensor_plot_readout"}:
             config["history_seconds"] = self.history_spin.value()
+
+        if tile_type == "live_plot":
             config["group_by_unit"] = self.group_by_unit_check.isChecked()
 
             # Preserve explicit YAML plot groups when the channel selection has
@@ -257,6 +405,13 @@ class TileConfigDialog(QtWidgets.QDialog):
                 old_channels = list(self.existing.config.get("channels", []))
                 if old_channels == channels and self.existing.config.get("plot_groups"):
                     config["plot_groups"] = list(self.existing.config["plot_groups"])
+
+        if tile_type == "sensor_plot_readout":
+            group = self.sensor_group_combo.currentData()
+            if group is not None:
+                config["quantity"] = group.quantity
+                config["unit"] = group.unit
+                config["y_label"] = sensor_group_label(group)
 
         if tile_type in self.READOUT_TILE_TYPES:
             config.update(
@@ -269,6 +424,11 @@ class TileConfigDialog(QtWidgets.QDialog):
                     "stale_after_s": self.readout_stale_spin.value(),
                 }
             )
+
+            if tile_type == "sensor_plot_readout":
+                # The combined tile calls this option ``readout_columns`` to
+                # distinguish it from dashboard grid column spans.
+                config["readout_columns"] = config.pop("columns")
 
             # ``display`` contains optional per-sensor YAML overrides such as
             # custom labels or formatting.  The dialog does not currently edit
@@ -302,6 +462,76 @@ class TileConfigDialog(QtWidgets.QDialog):
                 "Select at least one enabled sensor for this panel.",
             )
             return
+
+        if tile_type == "crusher_control":
+            actuator_ids = [
+                actuator_edit.text().strip()
+                for _row, _label, actuator_edit, _device, _relay in self.crusher_rows
+            ]
+            if any(not actuator_id for actuator_id in actuator_ids):
+                QtWidgets.QMessageBox.warning(self, "Missing actuator", "Each crusher needs an actuator ID.")
+                return
+            if len(set(actuator_ids)) != len(actuator_ids):
+                QtWidgets.QMessageBox.warning(
+                    self, "Duplicate crusher actuator", "Each crusher must reference a different actuator."
+                )
+                return
+            if self.actuator_registry is not None:
+                proposed = []
+                for index, (_row, label_edit, actuator_edit, device_combo, relay_spin) in enumerate(self.crusher_rows, start=1):
+                    actuator_id = actuator_edit.text().strip()
+                    device_id = str(device_combo.currentData() or "controller")
+                    relay = relay_spin.value() or None
+                    label = label_edit.text().strip() or f"Crusher {index}"
+                    existing_actuator = self.actuator_registry.maybe_get(actuator_id)
+                    if (
+                        existing_actuator is not None
+                        and existing_actuator.kind not in {"crusher_solenoid", "crusher"}
+                    ):
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Actuator already belongs to other hardware",
+                            f"Actuator {actuator_id!r} is defined as {existing_actuator.kind!r}, "
+                            "not a crusher actuator.",
+                        )
+                        return
+                    if relay is None:
+                        QtWidgets.QMessageBox.warning(
+                            self, "Unassigned crusher actuator", f"Assign a relay to actuator {actuator_id}."
+                        )
+                        return
+                    proposed.append((actuator_id, label, device_id, relay))
+
+                # Apply all four definitions as one registry transaction.
+                # Conflicts are validated against the final proposed map before
+                # anything is changed, so swapping two crusher relays is legal
+                # and a failed edit cannot leave half-created actuator entries.
+                candidates = []
+                for actuator_id, label, device_id, relay in proposed:
+                    current = self.actuator_registry.maybe_get(actuator_id)
+                    metadata = dict(current.metadata) if current is not None else {
+                        "powered_state": "raised_retracted",
+                        "unpowered_state": "lowered_extended",
+                    }
+                    candidates.append(
+                        ActuatorDefinition(
+                            actuator_id=actuator_id,
+                            label=label,
+                            kind="crusher_solenoid",
+                            device_id=device_id,
+                            relay_number=relay,
+                            enabled=True,
+                            default_active=True,
+                            metadata=metadata,
+                        )
+                    )
+                try:
+                    self.actuator_registry.upsert_many(candidates)
+                except ValueError as exc:
+                    QtWidgets.QMessageBox.warning(self, "Invalid crusher relay binding", str(exc))
+                    return
+
+
         self.accept()
 
     # ------------------------------------------------------------------
@@ -316,16 +546,21 @@ class TileConfigDialog(QtWidgets.QDialog):
     def _update_type_fields(self) -> None:
         tile_type = str(self.type_combo.currentData())
         sensors_visible = tile_type in self.SENSOR_TILE_TYPES
-        plot_visible = tile_type == "live_plot"
+        plot_visible = tile_type in {"live_plot", "sensor_plot_readout"}
+        plot_grouping_visible = tile_type == "live_plot"
+        measurement_group_visible = tile_type == "sensor_plot_readout"
         readout_visible = tile_type in self.READOUT_TILE_TYPES
+        crusher_visible = tile_type == "crusher_control"
 
         self.sensor_label.setVisible(sensors_visible)
         self.sensor_list.setVisible(sensors_visible)
 
         self.history_label.setVisible(plot_visible)
         self.history_spin.setVisible(plot_visible)
-        self.plot_grouping_label.setVisible(plot_visible)
-        self.group_by_unit_check.setVisible(plot_visible)
+        self.plot_grouping_label.setVisible(plot_grouping_visible)
+        self.group_by_unit_check.setVisible(plot_grouping_visible)
+        self.sensor_group_label_widget.setVisible(measurement_group_visible)
+        self.sensor_group_combo.setVisible(measurement_group_visible)
 
         for widget in (
             self.readout_columns_label,
@@ -341,6 +576,14 @@ class TileConfigDialog(QtWidgets.QDialog):
         ):
             widget.setVisible(readout_visible)
 
+        for widget in (
+            self.crusher_initialize_label,
+            self.crusher_initialize_check,
+            *self.crusher_row_labels,
+            *(row_widget for row_widget, _label, _actuator, _device, _relay in self.crusher_rows),
+        ):
+            widget.setVisible(crusher_visible)
+
     def _sensor_allowed_for_tile(
         self,
         tile_type: str,
@@ -354,6 +597,15 @@ class TileConfigDialog(QtWidgets.QDialog):
         # Generic sensor consumers can display any enabled numeric channel.
         if tile_type in {"live_plot", "sensor_values", "sensor_readout"}:
             return True
+
+        # A combined plot/readout uses one y-axis, so only channels from the
+        # explicitly selected measurement+unit group are valid.
+        if tile_type == "sensor_plot_readout":
+            selected_group = self.sensor_group_combo.currentData()
+            return (
+                selected_group is not None
+                and sensor_group_key(definition) == selected_group
+            )
 
         # Backward compatibility for old temperature-specific dashboard tiles.
         if tile_type == "temperature_monitor":

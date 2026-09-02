@@ -38,13 +38,13 @@ elements:
   - 42.712
   - 42.712
   rotation: 90.0
-  relay_number: 1
   initially_active: false
   enabled: true
   locked: false
   metadata:
     legacy_arduino_pin: 2
     legacy_button: Button 1
+  actuator_id: valve_01
 - id: valve_02
   label: '2'
   element_type: solenoid_2_way
@@ -55,13 +55,13 @@ elements:
   - 42.712
   - 42.712
   rotation: 90.0
-  relay_number: 2
   initially_active: false
   enabled: true
   locked: false
   metadata:
     legacy_arduino_pin: 3
     legacy_button: Button 2
+  actuator_id: valve_02
 - id: valve_03
   label: '3'
   element_type: solenoid_2_way
@@ -72,13 +72,13 @@ elements:
   - 42.712
   - 42.712
   rotation: 90.0
-  relay_number: 3
   initially_active: false
   enabled: true
   locked: false
   metadata:
     legacy_arduino_pin: 4
     legacy_button: Button 3
+  actuator_id: valve_03
 - id: valve_04
   label: '4'
   element_type: solenoid_2_way
@@ -89,13 +89,13 @@ elements:
   - 42.712
   - 42.712
   rotation: 90.0
-  relay_number: 4
   initially_active: false
   enabled: true
   locked: false
   metadata:
     legacy_arduino_pin: 5
     legacy_button: Button 4
+  actuator_id: valve_04
 - id: valve_05
   label: '5'
   element_type: solenoid_2_way
@@ -106,13 +106,13 @@ elements:
   - 42.712
   - 42.712
   rotation: 90.0
-  relay_number: 5
   initially_active: false
   enabled: true
   locked: false
   metadata:
     legacy_arduino_pin: 6
     legacy_button: Button 5
+  actuator_id: valve_05
 - id: element_22
   label: '22'
   element_type: solenoid_2_way
@@ -123,10 +123,10 @@ elements:
   - 42.7
   - 42.7
   rotation: 90.0
-  relay_number: 22
   initially_active: false
   enabled: true
   locked: false
+  actuator_id: element_22
 pipes:
 - id: pipe_002
   start:
