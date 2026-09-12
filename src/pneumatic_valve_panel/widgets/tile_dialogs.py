@@ -446,6 +446,16 @@ class TileConfigDialog(QtWidgets.QDialog):
             row_span=self.row_span_spin.value(),
             column_span=self.column_span_spin.value(),
             removable=self.existing.removable if self.existing else True,
+            # Detaching is controlled by the tile header, not this dialog.
+            # Preserve the state/geometry while users edit a detached panel's
+            # title, return position, channel list, or other options.
+            floating=self.existing.floating if self.existing else False,
+            visible=self.existing.visible if self.existing else True,
+            floating_geometry=(
+                list(self.existing.floating_geometry)
+                if self.existing and self.existing.floating_geometry
+                else None
+            ),
             config=config,
         )
 
@@ -665,3 +675,129 @@ class TileConfigDialog(QtWidgets.QDialog):
         # QListWidget rows are unique, but de-duplicating defensively keeps the
         # resulting YAML stable even if a future UI accidentally repeats rows.
         return list(dict.fromkeys(selected))
+
+
+class CrusherBindingsDialog(QtWidgets.QDialog):
+    """Edit only the four crusher actuator device/relay bindings.
+
+    This deliberately avoids dashboard geometry controls so first-launch
+    hardware setup is available directly from the crusher tile.  Changes are
+    applied to the central ActuatorRegistry as one atomic transaction.
+    """
+
+    def __init__(
+        self,
+        *,
+        crushers: list[dict],
+        actuator_registry: ActuatorRegistry,
+        device_definitions: dict[str, DeviceDefinition],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.actuator_registry = actuator_registry
+        self.device_definitions = dict(device_definitions)
+        self.setWindowTitle("Configure Crusher Relay Bindings")
+        self.resize(520, 340)
+
+        self.rows: list[tuple[str, str, QtWidgets.QComboBox, QtWidgets.QSpinBox]] = []
+        form = QtWidgets.QFormLayout()
+
+        for index in range(1, 5):
+            raw = dict(crushers[index - 1]) if index - 1 < len(crushers) else {}
+            crusher_id = str(raw.get("id", f"crusher_{index}"))
+            label = str(raw.get("label", f"Crusher {index}"))
+            actuator_id = str(raw.get("actuator_id", crusher_id))
+            actuator = actuator_registry.maybe_get(actuator_id)
+
+            device_combo = QtWidgets.QComboBox()
+            for device_id, definition in self.device_definitions.items():
+                if definition.enabled:
+                    device_combo.addItem(device_id, device_id)
+            if device_combo.count() == 0:
+                device_combo.addItem("controller", "controller")
+
+            if actuator is not None:
+                idx = device_combo.findData(actuator.device_id)
+                if idx >= 0:
+                    device_combo.setCurrentIndex(idx)
+
+            relay_spin = QtWidgets.QSpinBox()
+            relay_spin.setRange(0, actuator_registry.relay_count)
+            relay_spin.setSpecialValueText("Unassigned")
+            relay_spin.setValue(actuator.relay_number or 0 if actuator is not None else 0)
+
+            row = QtWidgets.QWidget()
+            layout = QtWidgets.QHBoxLayout(row)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(QtWidgets.QLabel(actuator_id), 1)
+            layout.addWidget(device_combo, 1)
+            layout.addWidget(QtWidgets.QLabel("Relay"))
+            layout.addWidget(relay_spin)
+            form.addRow(label, row)
+            self.rows.append((actuator_id, label, device_combo, relay_spin))
+
+        note = QtWidgets.QLabel(
+            "Bindings are stored in the central actuator registry. Relay conflicts "
+            "with valves or other hardware are rejected."
+        )
+        note.setWordWrap(True)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel
+        )
+        buttons.accepted.connect(self._save_if_valid)
+        buttons.rejected.connect(self.reject)
+
+        root = QtWidgets.QVBoxLayout(self)
+        root.addWidget(note)
+        root.addLayout(form)
+        root.addStretch(1)
+        root.addWidget(buttons)
+
+    def _save_if_valid(self) -> None:
+        candidates: list[ActuatorDefinition] = []
+        for actuator_id, label, device_combo, relay_spin in self.rows:
+            relay = relay_spin.value() or None
+            if relay is None:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Unassigned crusher relay",
+                    f"Assign a relay to {label} ({actuator_id}).",
+                )
+                return
+
+            current = self.actuator_registry.maybe_get(actuator_id)
+            if current is not None and current.kind not in {"crusher_solenoid", "crusher"}:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Actuator belongs to other hardware",
+                    f"{actuator_id!r} is defined as {current.kind!r}.",
+                )
+                return
+
+            candidates.append(
+                ActuatorDefinition(
+                    actuator_id=actuator_id,
+                    label=label,
+                    kind="crusher_solenoid",
+                    device_id=str(device_combo.currentData() or "controller"),
+                    relay_number=relay,
+                    enabled=True,
+                    default_active=True,
+                    metadata=(
+                        dict(current.metadata)
+                        if current is not None
+                        else {
+                            "powered_state": "raised_retracted",
+                            "unpowered_state": "lowered_extended",
+                        }
+                    ),
+                )
+            )
+
+        try:
+            self.actuator_registry.upsert_many(candidates)
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(self, "Invalid crusher relay binding", str(exc))
+            return
+        self.accept()

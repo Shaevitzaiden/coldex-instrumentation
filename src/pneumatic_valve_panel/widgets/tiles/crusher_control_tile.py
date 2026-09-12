@@ -64,6 +64,9 @@ class _CrusherUi:
 
 
 class CrusherControlTile(TileWidget):
+    # Requests MainWindow to open the dedicated central-registry binding editor.
+    bindings_configure_requested = QtCore.pyqtSignal(str)
+
     """Four-channel relay control panel for pneumatic ice crushers.
 
     The tile owns no serial port and no hardware thread.  It submits generic
@@ -130,6 +133,18 @@ class CrusherControlTile(TileWidget):
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(8)
         root.addWidget(self._warning_label)
+
+        binding_bar = QtWidgets.QHBoxLayout()
+        binding_bar.addStretch(1)
+        self.configure_bindings_button = QtWidgets.QPushButton("Configure Relay Bindings…")
+        self.configure_bindings_button.setToolTip(
+            "Assign the four crusher actuators to controller relays in the central actuator registry"
+        )
+        self.configure_bindings_button.clicked.connect(
+            lambda: self.bindings_configure_requested.emit(self.tile_id)
+        )
+        binding_bar.addWidget(self.configure_bindings_button)
+        root.addLayout(binding_bar)
 
         columns = QtWidgets.QHBoxLayout()
         columns.setSpacing(10)

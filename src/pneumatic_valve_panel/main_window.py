@@ -20,6 +20,7 @@ from .data import (
     QtDataBridge,
     SensorDefinition,
     StreamHub,
+    default_dashboard_config,
     load_dashboard_config,
     load_device_definitions,
     load_sensor_definitions,
@@ -29,6 +30,7 @@ from .hardware import DeviceManager
 from .models import PanelConfig
 from .recording import SessionRecorder
 from .widgets import (
+    CrusherBindingsDialog,
     ElementDialog,
     PipeDialog,
     PropertiesPanel,
@@ -103,10 +105,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dashboard_dirty = dashboard_migrated
         self._actuator_dirty = actuators_migrated
 
-        # Reset Dashboard Layout should restore the *post-migration* schema.
-        # Copying before legacy relay migration could reintroduce relay_number
-        # fields into crusher configs later in the same application run.
-        self._default_dashboard_config = copy.deepcopy(self.dashboard_config)
+        # Reset Dashboard Layout means the application's canonical equipment
+        # layout, not "whatever layout happened to be loaded at startup".
+        # User-saved detached states remain available through dashboard.yaml,
+        # while Reset always provides a reliable way back to the 4+2+2 layout.
+        self._default_dashboard_config = default_dashboard_config()
 
         # Connect only after startup migration.  The migration routine reports
         # its dirty state explicitly, while normal runtime edits are tracked by
@@ -610,7 +613,7 @@ class MainWindow(QtWidgets.QMainWindow):
             raw.pop("relay_number", None)
         config.config.pop("device_id", None)
 
-        return CrusherControlTile(
+        tile = CrusherControlTile(
             tile_id=config.tile_id,
             title=config.title,
             device_manager=self.device_manager,
@@ -620,11 +623,42 @@ class MainWindow(QtWidgets.QMainWindow):
             initialize_retracted=bool(config.config.get("initialize_retracted", True)),
             removable=config.removable,
         )
+        tile.bindings_configure_requested.connect(self._configure_crusher_bindings)
+        return tile
+
+    @QtCore.pyqtSlot(str)
+    def _configure_crusher_bindings(self, tile_id: str) -> None:
+        """Edit crusher relay bindings without recreating/reconfiguring the tile."""
+
+        config = self.dashboard.tile_configs.get(tile_id)
+        if config is None or config.tile_type != "crusher_control":
+            return
+
+        dialog = CrusherBindingsDialog(
+            crushers=list(config.config.get("crushers", [])),
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
+            parent=self,
+        )
+        if dialog.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        # Relay bindings are hardware configuration rather than transient UI
+        # state, so persist them immediately.  Every command producer resolves
+        # these same definitions on its next command.
+        save_actuator_definitions(self.actuator_registry.all(), self.actuator_config_path)
+        self._actuator_dirty = False
+        self._update_window_title()
+        self.statusBar().showMessage("Saved crusher relay bindings")
+        self.data_hub.log(
+            f"User updated crusher relay bindings for {tile_id}",
+            source="user.crusher_control",
+        )
 
     def _make_recording_tile(self, config: DashboardTileConfig) -> TileWidget:
-        # The default bottom row is intentionally compact. A scroll area keeps
-        # every recording control available without forcing the bottom row to
-        # grow beyond its configured 25% share of the window.
+        # Session Recording normally occupies the full-height two-column right
+        # rail.  Keeping it in a scroll area still makes the panel robust when
+        # users detach it, resize it smaller, or move it into another grid slot.
         self.recording_panel.setMinimumSize(0, 0)
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -706,6 +740,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.add_tile_action = QtWidgets.QAction("Add Dashboard Panel…", self)
         self.add_tile_action.triggered.connect(self._add_dashboard_tile)
+
+        # Unlike Add Dashboard Panel, this action is available during normal
+        # runtime and creates the tile directly as a separate top-level window.
+        # It is useful for temporary/secondary plots and readouts because the
+        # user never has to make room in the fixed dashboard grid first.
+        self.spawn_floating_tile_action = QtWidgets.QAction("Spawn Floating Panel…", self)
+        self.spawn_floating_tile_action.triggered.connect(self._spawn_floating_dashboard_tile)
+        self.spawn_floating_tile_action.setShortcut("Ctrl+Shift+F")
+
+        # Closing a detached window now hides it instead of redocking it. This
+        # action is the recovery path for those intentionally closed panels.
+        self.reopen_closed_tile_action = QtWidgets.QAction("Reopen Closed Panel…", self)
+        self.reopen_closed_tile_action.triggered.connect(self._reopen_closed_dashboard_tile)
+
         self.save_dashboard_action = QtWidgets.QAction("Save Dashboard Layout", self)
         self.save_dashboard_action.triggered.connect(self._save_dashboard_layout)
         self.reset_dashboard_layout_action = QtWidgets.QAction("Reset Dashboard Layout", self)
@@ -843,6 +891,9 @@ class MainWindow(QtWidgets.QMainWindow):
         dashboard_menu = self.menuBar().addMenu("Dashboard")
         dashboard_menu.addAction(self.edit_dashboard_action)
         dashboard_menu.addAction(self.add_tile_action)
+        dashboard_menu.addAction(self.spawn_floating_tile_action)
+        dashboard_menu.addAction(self.reopen_closed_tile_action)
+        dashboard_menu.addSeparator()
         dashboard_menu.addAction(self.save_dashboard_action)
         dashboard_menu.addAction(self.reset_dashboard_layout_action)
 
@@ -866,6 +917,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar = self.addToolBar("Operation")
         self.toolbar.setMovable(False)
         self.toolbar.addAction(self.edit_dashboard_action)
+        self.toolbar.addAction(self.spawn_floating_tile_action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.start_logging_action)
         self.toolbar.addAction(self.stop_logging_action)
@@ -1155,7 +1207,10 @@ class MainWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
     def _add_dashboard_tile(self) -> None:
         prefix = "tile"
-        default_row, default_column = self.dashboard.first_free_cell()
+        # The default dashboard is an eight-column layout where general-purpose
+        # panels occupy two logical columns.  Search for a two-column opening
+        # first so newly added panels naturally fit the middle/right structure.
+        default_row, default_column = self.dashboard.first_free_cell(column_span=2)
         dialog = TileConfigDialog(
             sensor_definitions=self.sensor_definitions,
             actuator_registry=self.actuator_registry,
@@ -1165,6 +1220,7 @@ class MainWindow(QtWidgets.QMainWindow):
             default_column=default_column,
             parent=self,
         )
+        dialog.column_span_spin.setValue(2)
         if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return
         config = dialog.result_config()
@@ -1178,6 +1234,62 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Could not place tile", str(exc))
             return
         self.data_hub.log(f"User added dashboard panel {config.tile_id}", source="user.dashboard")
+
+    def _spawn_floating_dashboard_tile(self) -> None:
+        """Create a new dashboard tile directly in its own top-level window.
+
+        The tile is still part of the persisted DashboardConfig.  Its row and
+        column are stored only as a *preferred return position* for a future
+        redock.  Because ``floating=True`` makes it occupy no grid cells, this
+        workflow never requires rearranging the main window before opening an
+        extra plot/readout/status panel.
+        """
+
+        # A normal two-column footprint makes the eventual redock behavior
+        # sensible.  If the main grid is currently full, first_free_cell may
+        # return a new row; that is harmless while the tile remains floating.
+        default_row, default_column = self.dashboard.first_free_cell(column_span=2)
+        dialog = TileConfigDialog(
+            sensor_definitions=self.sensor_definitions,
+            actuator_registry=self.actuator_registry,
+            device_definitions=self.device_definitions,
+            default_tile_id=self.dashboard.current_config().next_tile_id("floating"),
+            default_row=default_row,
+            default_column=default_column,
+            parent=self,
+        )
+        dialog.column_span_spin.setValue(2)
+        dialog.setWindowTitle("Spawn Floating Dashboard Panel")
+
+        if dialog.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        config = dialog.result_config()
+        if config.tile_id in self.dashboard.tiles:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Duplicate tile ID",
+                f"A tile named {config.tile_id!r} already exists.",
+            )
+            return
+
+        # This is the only semantic difference from Add Dashboard Panel.  The
+        # DashboardWidget will create a DetachedTileWindow immediately and the
+        # preferred grid coordinates remain available for later reattachment.
+        config.floating = True
+        config.floating_geometry = None
+
+        try:
+            tile = self._create_tile(config)
+            self.dashboard.add_tile(tile, config)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Could not spawn panel", str(exc))
+            return
+
+        self.data_hub.log(
+            f"User spawned floating dashboard panel {config.tile_id}",
+            source="user.dashboard",
+        )
 
     def _configure_dashboard_tile(self, tile_id: str) -> None:
         config = self.dashboard.tile_configs.get(tile_id)
@@ -1203,6 +1315,47 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.data_hub.log(f"User configured dashboard panel {tile_id}", source="user.dashboard")
 
+    def _reopen_closed_dashboard_tile(self) -> None:
+        """Let the user reopen a floating panel closed with the window-manager X."""
+
+        closed_ids = self.dashboard.closed_tile_ids()
+        if not closed_ids:
+            self.statusBar().showMessage("No closed dashboard panels")
+            return
+
+        # Display human-readable titles while retaining tile IDs for unambiguous
+        # lookup when multiple panels share the same title.
+        choices = []
+        choice_to_id = {}
+        for tile_id in closed_ids:
+            config = self.dashboard.tile_configs[tile_id]
+            label = f"{config.title}  [{tile_id}]"
+            choices.append(label)
+            choice_to_id[label] = tile_id
+
+        selected, accepted = QtWidgets.QInputDialog.getItem(
+            self,
+            "Reopen Closed Panel",
+            "Panel:",
+            choices,
+            0,
+            False,
+        )
+        if not accepted or not selected:
+            return
+
+        tile_id = choice_to_id[selected]
+        try:
+            self.dashboard.reopen_tile(tile_id)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Could not reopen panel", str(exc))
+            return
+
+        self.data_hub.log(
+            f"User reopened dashboard panel {tile_id}",
+            source="user.dashboard",
+        )
+
     def _replace_dashboard_tile(self, tile_id: str, config: DashboardTileConfig) -> None:
         new_tile = self._create_tile(config)
         self.dashboard.replace_tile(tile_id, new_tile, config)
@@ -1211,7 +1364,7 @@ class MainWindow(QtWidgets.QMainWindow):
         response = QtWidgets.QMessageBox.question(
             self,
             "Reset dashboard layout?",
-            "Reset the dashboard to the fixed 60/40 by 75/25 four-panel layout?",
+            "Reset the dashboard to the 8-column, 3-row equipment layout?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
         )
         if response != QtWidgets.QMessageBox.Yes:
@@ -1220,7 +1373,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dashboard_dirty = True
         self._update_window_title()
         self.data_hub.log(
-            "User reset dashboard layout to the fixed four-panel default",
+            "User reset dashboard layout to the 8-column, 3-row equipment default",
             source="user.dashboard",
         )
 
@@ -1230,6 +1383,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.setParent(None)
         self.recording_panel.setParent(None)
         old_dashboard = self.takeCentralWidget()
+        if isinstance(old_dashboard, DashboardWidget):
+            # Detached panels are parentless top-level windows, so deleting the
+            # central dashboard alone would not destroy them.  Tear them down
+            # explicitly before constructing the replacement layout.
+            old_dashboard.dispose_floating_windows()
 
         self.dashboard_config = config
         self.dashboard = DashboardWidget(
@@ -1400,8 +1558,10 @@ class MainWindow(QtWidgets.QMainWindow):
             "  Delete/Backspace: delete selected\n\n"
             "Dashboard layout editing:\n"
             "  Ctrl+D: toggle dashboard editing\n"
-            "  Runtime mode keeps all four operational panels fixed.\n"
-            "  In dashboard edit mode, use each panel's gear button to change its row, column, or span.\n"
+            "  Runtime mode keeps docked panel geometry fixed.\n"
+            "  Use the ↗ button on any panel to open it as a separate window; ↙ returns it.\n"
+            "  Detached panels free their grid cells for other widgets.\n"
+            "  In dashboard edit mode, use each panel's gear button to change its return row/column/span.\n"
             "  Removable panels also show a remove button.\n\n"
             "Recording data:\n"
             "  Select sensors in the Session Recording panel, then start logging.\n"
@@ -1443,6 +1603,11 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             event.ignore()
             return
+        # Detached dashboard panels are ordinary top-level windows.  Close
+        # them explicitly so Qt does not keep the process alive after the main
+        # window closes.  Their geometry has already been captured by any
+        # dashboard save performed above.
+        self.dashboard.close_detached_windows_for_shutdown()
         logging.getLogger().removeHandler(self.qt_log_handler)
         self._shutdown_complete = True
         event.accept()

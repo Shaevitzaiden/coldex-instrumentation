@@ -235,6 +235,10 @@ class DashboardTileConfig:
     column_span: int = 1
     removable: bool = True
     floating: bool = False
+    # ``visible`` is independent from docked/floating state. A floating panel
+    # may be closed by the user without being redocked or removed from the
+    # saved dashboard configuration.
+    visible: bool = True
     floating_geometry: list[int] | None = None
     config: dict[str, Any] = field(default_factory=dict)
 
@@ -250,6 +254,7 @@ class DashboardTileConfig:
             column_span=max(1, int(data.get("column_span", data.get("col_span", 1)))),
             removable=bool(data.get("removable", True)),
             floating=bool(data.get("floating", False)),
+            visible=bool(data.get("visible", True)),
             floating_geometry=(
                 [int(v) for v in data.get("floating_geometry", [])[:4]]
                 if data.get("floating_geometry")
@@ -272,6 +277,8 @@ class DashboardTileConfig:
         }
         if self.floating:
             data["floating"] = True
+        if not self.visible:
+            data["visible"] = False
             if self.floating_geometry:
                 data["floating_geometry"] = list(self.floating_geometry[:4])
         return data
@@ -279,10 +286,10 @@ class DashboardTileConfig:
 
 @dataclass
 class DashboardConfig:
-    rows: int = 2
-    columns: int = 2
-    row_stretches: list[int] = field(default_factory=lambda: [3, 1])
-    column_stretches: list[int] = field(default_factory=lambda: [3, 2])
+    rows: int = 3
+    columns: int = 8
+    row_stretches: list[int] = field(default_factory=lambda: [1, 1, 1])
+    column_stretches: list[int] = field(default_factory=lambda: [1, 1, 1, 1, 1, 1, 1, 1])
     tiles: list[DashboardTileConfig] = field(default_factory=list)
     schema_version: int = 1
     dock_state: str | None = None
@@ -292,10 +299,13 @@ class DashboardConfig:
     def from_dict(cls, data: Mapping[str, Any]) -> "DashboardConfig":
         dashboard = dict(data.get("dashboard", data))
         tiles = [DashboardTileConfig.from_dict(item) for item in dashboard.get("tiles", [])]
-        rows = max(1, int(dashboard.get("rows", 2)))
-        columns = max(1, int(dashboard.get("columns", 2)))
-        row_stretches = [max(0, int(value)) for value in dashboard.get("row_stretches", [3, 1])]
-        column_stretches = [max(0, int(value)) for value in dashboard.get("column_stretches", [3, 2])]
+        rows = max(1, int(dashboard.get("rows", 3)))
+        columns = max(1, int(dashboard.get("columns", 8)))
+        row_stretches = [max(0, int(value)) for value in dashboard.get("row_stretches", [1, 1, 1])]
+        column_stretches = [
+            max(0, int(value))
+            for value in dashboard.get("column_stretches", [1, 1, 1, 1, 1, 1, 1, 1])
+        ]
         if len(row_stretches) < rows:
             row_stretches.extend([1] * (rows - len(row_stretches)))
         if len(column_stretches) < columns:

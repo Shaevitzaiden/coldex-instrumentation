@@ -1,61 +1,86 @@
 schema_version: 1
 dashboard:
-  rows: 2
-  columns: 2
+  rows: 4
+  columns: 8
   row_stretches:
-  - 3
+  - 1
+  - 1
+  - 1
   - 1
   column_stretches:
-  - 3
-  - 2
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
   tiles:
   - id: valve_panel_main
     type: valve_panel
     title: Pneumatic Valve Panel
     row: 0
     column: 0
-    row_span: 1
-    column_span: 1
+    row_span: 2
+    column_span: 4
     removable: false
     config: {}
-  - id: recording_session
-    type: recording
-    title: Session Recording
-    row: 1
-    column: 1
-    row_span: 1
-    column_span: 1
-    removable: false
-    config: {}
-  - id: tile_01
-    type: sensor_plot_readout
-    title: New Tile
+  - id: plot_main
+    type: live_plot
+    title: Live Sensor Plots
     row: 0
-    column: 1
-    row_span: 1
-    column_span: 1
+    column: 4
+    row_span: 2
+    column_span: 2
     removable: true
     config:
+      history_seconds: 30
+      group_by_unit: true
       channels:
+      - controller.pressure_supply
+      - controller.pressure_output
+      - controller.flow_rate
       - controller.temperature
       - environment.temperature
-      history_seconds: 30.0
-      quantity: temperature
-      unit: "\xB0C"
-      y_label: "Temperature [\xB0C]"
-      default_decimals: 2
-      value_font_size: 24
-      show_units: true
-      show_source: false
-      stale_after_s: 0.0
-      readout_columns: 2
-  - id: tile_02
+      - environment.humidity
+      plot_groups:
+      - title: Pressures
+        y_label: Pressure
+        unit: kPa
+        channels:
+        - controller.pressure_supply
+        - controller.pressure_output
+      - title: Flow
+        y_label: Flow rate
+        unit: L/min
+        channels:
+        - controller.flow_rate
+      - title: Temperatures
+        y_label: Temperature
+        unit: "\xB0C"
+        channels:
+        - controller.temperature
+        - environment.temperature
+      - title: Humidity
+        y_label: Relative humidity
+        unit: '%RH'
+        channels:
+        - environment.humidity
+    floating: true
+    visible: false
+    floating_geometry:
+    - 41
+    - 107
+    - 1000
+    - 650
+  - id: crushers_main
     type: crusher_control
-    title: New Tile
-    row: 1
+    title: Ice Crushers
+    row: 2
     column: 0
     row_span: 1
-    column_span: 1
+    column_span: 4
     removable: true
     config:
       initialize_retracted: true
@@ -72,4 +97,72 @@ dashboard:
       - id: crusher_4
         label: Crusher 4
         actuator_id: crusher_4
-  dock_layout_version: fixed_grid_v1
+  - id: sensor_cards_main
+    type: sensor_readout
+    title: Sensor Values
+    row: 2
+    column: 4
+    row_span: 1
+    column_span: 2
+    removable: true
+    config:
+      channels:
+      - controller.pressure_supply
+      - controller.pressure_output
+      - controller.flow_rate
+      - controller.temperature
+      - environment.temperature
+      - environment.humidity
+      columns: 2
+      default_decimals: 1
+      value_font_size: 18
+      show_units: true
+      show_source: false
+  - id: recording_session
+    type: recording
+    title: Session Recording
+    row: 0
+    column: 6
+    row_span: 3
+    column_span: 2
+    removable: false
+    config: {}
+  - id: tile_01
+    type: sensor_plot_readout
+    title: New Tile
+    row: 0
+    column: 4
+    row_span: 2
+    column_span: 2
+    removable: true
+    config:
+      channels:
+      - controller.temperature
+      - environment.temperature
+      history_seconds: 30.0
+      quantity: temperature
+      unit: "\xB0C"
+      y_label: "Temperature [\xB0C]"
+      default_decimals: 2
+      value_font_size: 24
+      show_units: true
+      show_source: false
+      stale_after_s: 0.0
+      readout_columns: 2
+  - id: floating_01
+    type: device_connectivity
+    title: New Tile
+    row: 3
+    column: 0
+    row_span: 1
+    column_span: 2
+    removable: true
+    config: {}
+    floating: true
+    visible: false
+    floating_geometry:
+    - 41
+    - 107
+    - 1000
+    - 650
+  dock_layout_version: fixed_grid_v4_8col_spawn_floating

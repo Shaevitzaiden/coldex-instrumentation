@@ -82,3 +82,13 @@ from touching the serial port directly.
 `device_id: controller` selects the same device service that the pneumatic valve
 panel uses. Both widgets therefore serialize commands through the same command
 queue and the same communicator-owning worker thread.
+
+## First-launch relay binding
+
+The crusher panel now contains an always-available **Configure Relay Bindings...**
+button.  It opens a focused editor for the four crusher actuators without
+requiring Dashboard Edit Mode or removing/recreating the panel.  The editor
+writes device/relay assignments to the central `config/actuators.yaml` registry,
+validates all four assignments atomically against every other actuator (including
+pneumatic valves), and saves the registry immediately.  The existing crusher
+panel refreshes as soon as the bindings change.
