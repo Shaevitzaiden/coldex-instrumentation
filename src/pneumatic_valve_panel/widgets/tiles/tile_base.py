@@ -4,15 +4,18 @@ from PyQt5 import QtCore, QtWidgets
 
 
 class TileWidget(QtWidgets.QFrame):
-    """Framed dashboard panel with edit-only layout controls.
+    """Framed dashboard panel shared by docked and detached presentations.
 
-    The title remains visible in runtime mode, but geometry controls are hidden.
-    This keeps the operational dashboard clear while making the editing mode
-    discoverable and predictable.
+    Dashboard *layout* editing remains explicit and grid based.  Detaching a
+    panel is intentionally a separate runtime operation: the same TileWidget is
+    simply reparented from the dashboard grid into a small top-level window.
+    Because the widget instance is preserved, its signal connections, plot
+    buffers, latest sensor values, and actuator state are preserved as well.
     """
 
     close_requested = QtCore.pyqtSignal(str)
     configure_requested = QtCore.pyqtSignal(str)
+    floating_toggle_requested = QtCore.pyqtSignal(str)
 
     def __init__(
         self,
@@ -27,6 +30,8 @@ class TileWidget(QtWidgets.QFrame):
         self.tile_id = tile_id
         self.removable = removable
         self.child = child
+        self._floating = False
+
         self.setObjectName(f"DashboardTile_{tile_id}")
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.setFrameShadow(QtWidgets.QFrame.Plain)
@@ -36,6 +41,16 @@ class TileWidget(QtWidgets.QFrame):
         font = self.title_label.font()
         font.setBold(True)
         self.title_label.setFont(font)
+
+        # This button is deliberately visible in normal runtime mode.  It is
+        # not part of layout editing: it merely changes *where the same tile is
+        # presented*.  When detached, the arrow reverses and acts as a redock
+        # command.
+        self.floating_button = QtWidgets.QToolButton()
+        self.floating_button.setAutoRaise(True)
+        self.floating_button.clicked.connect(
+            lambda: self.floating_toggle_requested.emit(self.tile_id)
+        )
 
         self.configure_button = QtWidgets.QToolButton()
         self.configure_button.setText("⚙")
@@ -53,6 +68,7 @@ class TileWidget(QtWidgets.QFrame):
         header_layout.setContentsMargins(6, 2, 3, 2)
         header_layout.addWidget(self.title_label)
         header_layout.addStretch(1)
+        header_layout.addWidget(self.floating_button)
         header_layout.addWidget(self.configure_button)
         header_layout.addWidget(self.close_button)
 
@@ -61,6 +77,8 @@ class TileWidget(QtWidgets.QFrame):
         layout.setSpacing(2)
         layout.addWidget(self.header)
         layout.addWidget(child, 1)
+
+        self.set_floating_state(False)
         self.set_dashboard_edit_mode(False)
 
     def title(self) -> str:
@@ -68,6 +86,21 @@ class TileWidget(QtWidgets.QFrame):
 
     def set_title(self, title: str) -> None:
         self.title_label.setText(title)
+
+    def set_floating_state(self, floating: bool) -> None:
+        """Update only the tile chrome; DashboardWidget owns reparenting."""
+
+        self._floating = bool(floating)
+        if self._floating:
+            self.floating_button.setText("↙")
+            self.floating_button.setToolTip("Return this panel to the main dashboard")
+        else:
+            self.floating_button.setText("↗")
+            self.floating_button.setToolTip("Open this panel in a separate window")
+
+    @property
+    def is_floating(self) -> bool:
+        return self._floating
 
     def set_dashboard_edit_mode(self, enabled: bool) -> None:
         enabled = bool(enabled)

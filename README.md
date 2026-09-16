@@ -47,3 +47,44 @@ command results before confirming state, and can request startup retraction.
 Relay uniqueness is enforced centrally by `ActuatorRegistry`, rather than by
 widget-to-widget conflict checks. See `CRUSHER_CONTROL_GUIDE.md` and
 `examples/crusher_control_dashboard_example.yaml`.
+
+## Eight-column detachable dashboard
+
+The default main window is now an 8-column by 3-row fixed grid:
+
+- Pneumatic Valve Panel: 4 columns wide and 2 rows tall at upper left.
+- Ice Crushers: 4 columns wide directly beneath the pneumatic panel.
+- Live Sensor Plots: 2-column middle strip spanning the upper two rows.
+- Sensor Values cards: 2-column middle strip on the bottom row.
+- Session Recording: 2-column full-height right rail spanning all three rows.
+
+The system log and device-connectivity tiles remain available, but are no longer
+forced into the shipped main-window layout; they can be added into a free grid
+location or spawned directly as floating windows.
+
+Every dashboard tile can be opened as its own top-level window with the `↗`
+button. Detached panels free their former grid cells for other widgets. The
+window-manager **X** now closes/hides a floating panel instead of redocking it;
+`↙` is the only redock action. Closed panels can be restored from **Dashboard →
+Reopen Closed Panel…**. Saved layouts persist detached geometry and also persist
+closed floating panels as `visible: false`.
+
+For temporary or secondary panels, **Dashboard → Spawn Floating Panel…**
+(`Ctrl+Shift+F`) creates the selected tile directly in a separate window, without
+first placing it into the main grid. Multiple newly spawned windows are slightly
+cascaded so they do not initially cover one another.
+
+Session Recording has also been compacted for its narrow right rail: shortened
+visible sensor labels, compact headers/path controls, and stretch behavior that
+keeps the sensor-name column flexible while minimizing horizontal scrolling.
+
+This custom mechanism deliberately keeps the stable fixed-grid dashboard instead
+of using Qt's native dock splitter engine. See `DETACHABLE_DASHBOARD_GUIDE.md`.
+
+### Recent usability changes
+
+- Directly spawned floating panels no longer expand the main dashboard with a
+  phantom bottom row. Empty docked rows collapse until a panel is redocked.
+- The Ice Crushers panel has an always-visible **Configure Relay Bindings...**
+  action for first-launch hardware setup. Bindings are validated globally and
+  saved immediately to `config/actuators.yaml`.

@@ -46,8 +46,8 @@ actuators:
     label: Crusher 1
     kind: crusher_solenoid
     device_id: controller
-    relay_number: 7
-    enabled: true
+    relay_number: null
+    enabled: false
     default_active: true
     metadata:
       powered_state: raised_retracted
@@ -56,8 +56,8 @@ actuators:
     label: Crusher 2
     kind: crusher_solenoid
     device_id: controller
-    relay_number: 8
-    enabled: true
+    relay_number: null
+    enabled: false
     default_active: true
     metadata:
       powered_state: raised_retracted
@@ -66,8 +66,8 @@ actuators:
     label: Crusher 3
     kind: crusher_solenoid
     device_id: controller
-    relay_number: 9
-    enabled: true
+    relay_number: null
+    enabled: false
     default_active: true
     metadata:
       powered_state: raised_retracted
@@ -76,8 +76,8 @@ actuators:
     label: Crusher 4
     kind: crusher_solenoid
     device_id: controller
-    relay_number: 10
-    enabled: true
+    relay_number: null
+    enabled: false
     default_active: true
     metadata:
       powered_state: raised_retracted

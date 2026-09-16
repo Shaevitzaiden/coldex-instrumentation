@@ -93,14 +93,28 @@ def save_dashboard_config(config: DashboardConfig, path: str | Path) -> None:
 
 
 def default_dashboard_config() -> DashboardConfig:
+    """Return the standard 8-column x 3-row equipment dashboard.
+
+    Logical placement:
+        * pneumatic valve panel: left 4 columns x upper 2 rows
+        * crusher controls: left 4 columns x bottom row
+        * live sensor plots: middle 2 columns x upper 2 rows
+        * sensor readout cards: middle 2 columns x bottom row
+        * session recording: right 2 columns x all 3 rows
+
+    The eight equal-stretch logical columns make the 4/2/2 width allocation
+    explicit and predictable.  Detached/floating panels do not occupy grid
+    cells and therefore do not disturb these proportions.
+    """
+
     from .models import DashboardTileConfig
 
     return DashboardConfig(
-        rows=2,
-        columns=2,
-        row_stretches=[3, 1],
-        column_stretches=[3, 2],
-        dock_layout_version="fixed_grid_v2_stream_hub",
+        rows=3,
+        columns=8,
+        row_stretches=[1, 1, 1],
+        column_stretches=[1, 1, 1, 1, 1, 1, 1, 1],
+        dock_layout_version="fixed_grid_v4_8col_spawn_floating",
         tiles=[
             DashboardTileConfig(
                 tile_id="valve_panel_main",
@@ -108,6 +122,8 @@ def default_dashboard_config() -> DashboardConfig:
                 title="Pneumatic Valve Panel",
                 row=0,
                 column=0,
+                row_span=2,
+                column_span=4,
                 removable=False,
             ),
             DashboardTileConfig(
@@ -115,22 +131,54 @@ def default_dashboard_config() -> DashboardConfig:
                 tile_type="live_plot",
                 title="Live Sensor Plots",
                 row=0,
-                column=1,
+                column=4,
+                row_span=2,
+                column_span=2,
                 config={"channels": [], "history_seconds": 30.0, "group_by_unit": True},
             ),
             DashboardTileConfig(
-                tile_id="log_main",
-                tile_type="log",
-                title="System Log",
-                row=1,
+                tile_id="crushers_main",
+                tile_type="crusher_control",
+                title="Ice Crushers",
+                row=2,
                 column=0,
+                row_span=1,
+                column_span=4,
+                removable=True,
+                config={
+                    "initialize_retracted": True,
+                    "crushers": [
+                        {"id": f"crusher_{index}", "label": f"Crusher {index}", "actuator_id": f"crusher_{index}"}
+                        for index in range(1, 5)
+                    ],
+                },
+            ),
+            DashboardTileConfig(
+                tile_id="sensor_cards_main",
+                tile_type="sensor_readout",
+                title="Sensor Values",
+                row=2,
+                column=4,
+                row_span=1,
+                column_span=2,
+                removable=True,
+                config={
+                    "channels": [],
+                    "columns": 2,
+                    "default_decimals": 1,
+                    "value_font_size": 18,
+                    "show_units": True,
+                    "show_source": False,
+                },
             ),
             DashboardTileConfig(
                 tile_id="recording_session",
                 tile_type="recording",
                 title="Session Recording",
-                row=1,
-                column=1,
+                row=0,
+                column=6,
+                row_span=3,
+                column_span=2,
                 removable=False,
             ),
         ],

@@ -29,17 +29,38 @@ class RecordingPanel(QtWidgets.QWidget):
         self.sensor_definitions = sensor_definitions
 
         self.directory_edit = QtWidgets.QLineEdit(str(base_directory))
-        self.directory_button = QtWidgets.QPushButton("Browse…")
+        # Keep the session-root control narrow enough for the two-column
+        # recording rail.  A compact tool button avoids reserving the width of
+        # the word "Browse…" while retaining the same file-dialog behavior.
+        self.directory_edit.setMinimumWidth(0)
+        self.directory_edit.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        self.directory_button = QtWidgets.QToolButton()
+        self.directory_button.setText("…")
+        self.directory_button.setToolTip("Choose session root directory")
+        self.directory_button.setFixedWidth(30)
         self.directory_button.clicked.connect(self._browse_directory)
         directory_row = QtWidgets.QHBoxLayout()
+        directory_row.setContentsMargins(0, 0, 0, 0)
+        directory_row.setSpacing(4)
         directory_row.addWidget(self.directory_edit, 1)
         directory_row.addWidget(self.directory_button)
 
         self.sensor_table = QtWidgets.QTableWidget(0, 4)
-        self.sensor_table.setHorizontalHeaderLabels(["Log", "Sensor / source", "Unit", "Expected Hz"])
+        self.sensor_table.setHorizontalHeaderLabels(["Log", "Sensor", "Unit", "Hz"])
         self.sensor_table.verticalHeader().setVisible(False)
-        self.sensor_table.horizontalHeader().setStretchLastSection(True)
         self.sensor_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        self.sensor_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.sensor_table.setWordWrap(False)
+
+        # Let the descriptive sensor column absorb the available width while
+        # keeping the checkbox/unit/rate columns compact.  This substantially
+        # reduces horizontal scrolling in the narrow right-hand rail.
+        header = self.sensor_table.horizontalHeader()
+        header.setMinimumSectionSize(28)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         for sensor_id, definition in sensor_definitions.items():
             row = self.sensor_table.rowCount()
             self.sensor_table.insertRow(row)
@@ -48,9 +69,14 @@ class RecordingPanel(QtWidgets.QWidget):
             check.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsUserCheckable)
             check.setCheckState(QtCore.Qt.Checked if definition.default_log else QtCore.Qt.Unchecked)
             self.sensor_table.setItem(row, 0, check)
-            label = QtWidgets.QTableWidgetItem(f"{definition.label} ({definition.sensor_id})")
+            # Show only the human-readable label in the table.  The globally
+            # qualified ID/source remain available in the tooltip, avoiding a
+            # very wide table for long sensor IDs.
+            label = QtWidgets.QTableWidgetItem(definition.label)
             label.setToolTip(
-                f"Device: {definition.source_device}\nLocal channel: {definition.source_channel}"
+                f"Sensor ID: {definition.sensor_id}\n"
+                f"Device: {definition.source_device}\n"
+                f"Local channel: {definition.source_channel}"
             )
             label.setFlags(QtCore.Qt.ItemIsEnabled)
             self.sensor_table.setItem(row, 1, label)
@@ -70,7 +96,7 @@ class RecordingPanel(QtWidgets.QWidget):
         self.autosave_spin.setValue(autosave_interval_s)
         self.autosave_spin.valueChanged.connect(self.autosave_interval_changed)
 
-        self.start_button = QtWidgets.QPushButton("Start Sensor Logging")
+        self.start_button = QtWidgets.QPushButton("Start Logging")
         self.stop_button = QtWidgets.QPushButton("Stop + Save")
         self.snapshot_button = QtWidgets.QPushButton("Save Snapshot")
         self.save_now_button = QtWidgets.QPushButton("Save Now")
@@ -88,8 +114,12 @@ class RecordingPanel(QtWidgets.QWidget):
         self.session_label.setWordWrap(True)
 
         form = QtWidgets.QFormLayout()
-        form.addRow("Session root", directory_row)
-        form.addRow("Autosave every", self.autosave_spin)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setHorizontalSpacing(6)
+        form.setVerticalSpacing(5)
+        form.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
+        form.addRow("Root", directory_row)
+        form.addRow("Autosave", self.autosave_spin)
 
         button_grid = QtWidgets.QGridLayout()
         button_grid.addWidget(self.start_button, 0, 0)
@@ -100,8 +130,10 @@ class RecordingPanel(QtWidgets.QWidget):
         button_grid.addWidget(self.save_close_button, 2, 1)
 
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
         layout.addLayout(form)
-        layout.addWidget(QtWidgets.QLabel("Sensors selected for per-channel recording"))
+        layout.addWidget(QtWidgets.QLabel("Sensors to record"))
         layout.addWidget(self.sensor_table, 1)
         layout.addLayout(button_grid)
         layout.addWidget(self.status_label)
