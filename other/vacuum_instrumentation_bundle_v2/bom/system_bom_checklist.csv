@@ -1,0 +1,61 @@
+Subsystem,Category,Item,Qty,Priority,Status,Device / Interface,Purpose,Example Part,Product / Reference URL,Notes
+Core control,Existing equipment,Main control laptop,1,Required,Have,System,"Runs PyQt GUI, logger, device services, and possibly Agilent software",,,Confirm enough USB/Ethernet connectivity and power.
+Core control,Existing equipment,USB dock / hub,2,Required,Need to Buy,System,Central edge-access connection point for USB peripherals,,,Prefer externally powered if many USB devices are connected.
+Core control,Controller,Arduino Due,1,Required,Need to Buy,Pneumatics / GC sync,"Main low-level controller for pneumatic valves, relays, other solenoids, and GC APG I/O",Arduino Due,https://store.arduino.cc/products/arduino-due,7–12 V recommended external input; 3.3 V logic.
+Core control,DAQ,Adafruit Feather RP2040 Adalogger,1,Required,Need to Buy,Analog instruments,Samples GP475 and PDR-D-1 analog outputs; two spare ADC channels remain,Adafruit PID 5980,https://www.adafruit.com/product/5980,Baseline uses onboard A0–A3 ADCs; ADS1115 optional.
+Core control,Cable,USB data cable for Arduino Due,1,Required,Have / Verify,Arduino Due,Laptop ? Due programming/data,,,Match Due USB connector and dock port.
+Core control,Cable,USB-C data cable for Feather,1,Required,Have / Verify,Feather DAQ,Laptop/dock ? Feather USB data + power,,,Must be data-capable.
+Power,Main PSU,24 V DC main power supply,1,Required,Need to Buy,24 V bus,"Feeds pneumatic valves, solenoids, and downstream DC/DC converters",Mean Well HDR-150-24 (example),https://www.meanwell.com/webapp/product/search.aspx?prod=HDR-150,Final wattage must be checked against all 24 V actuator loads.
+Power,DC/DC,24 V ? 12 V regulator for Arduino Due,1,Required,Need to Buy,Arduino Due,Feeds Due barrel jack / VIN from main 24 V bus,Pololu D24V22F9,https://www.pololu.com/product/2861,Compact option; 9 V is inside Due's recommended input range.
+Power,DC/DC,24 V ? 5 V DIN-rail regulator,1,Required,Need to Buy,Relay power,Dedicated 5 V supply for relay coils/peripherals,Mean Well DDR-15G-5,https://www.meanwell.com/webapp/product/search.aspx?prod=DDR-15G,Keep relay coil current off Due 5 V rail.
+Power,Distribution,24 V DIN terminal blocks / distribution blocks,1,Required,Optional,24 V bus,Distribute +24 V and 0 V to branch circuits,,,Quantity depends on number of branches.
+Power,Protection,Branch fuse holders / fused terminal blocks,1,Required,Optional,24 V bus,"Separate fusing for pneumatics, Due converter, relay converter, other solenoids",,,Finalize ratings after current budget.
+Power,Protection,Main DC fuse / breaker after PSU,1,Recommended,Optional,24 V bus,Protects primary 24 V distribution wiring,,,Coordinate with PSU and conductor ampacity.
+Power,Mains,Mains inlet / switch / fuse or protected power entry,1,Recommended,Optional,24 V PSU,Safe AC mains connection to PSU,,,"Use enclosed, strain-relieved, rated implementation."
+Power,Grounding,DIN PE / chassis ground terminals,1,Recommended,Optional,System,Protective-earth bonding and organized grounding,,,Useful with metal DIN rail / PSU enclosure.
+Power,AC distribution,Laboratory power strip / PDU for standalone instruments,1,Required,Have,External instruments,Powers standalone instruments and laptop as applicable,,,Check current rating and outlet count.
+Pneumatics,Existing equipment,SMC / Orange Coast manifold with VQC1A01-51 valves,1,Required,Have,Pneumatics,Primary pneumatic valve manifold,,,24 V valve power switched through relays/drivers.
+Pneumatics,Existing equipment,5 V relay module(s),1,Required,Have,Pneumatics,Switches 24 V valve/solenoid circuits under Due control,Elegoo 4-channel 5 V relay module (existing),,Confirm relay channel count and JD-VCC/VCC arrangement.
+Pneumatics,Actuator wiring,24 V valve/solenoid hookup wire,1,Required,Have,Pneumatics,Power wiring from fused distribution through relays to valves,,,Gauge based on current and run length.
+Pneumatics,Protection,Flyback / suppression for inductive loads,1,Recommended,Have,Pneumatics,Reduces solenoid switching transients,,,Depends on coil built-in suppression and relay topology.
+Pneumatics,Other actuators,Other 24 V solenoids / crusher actuators,1,Required,Have,Pneumatics,Additional controlled actuators,,,Record each coil's rated current before finalizing PSU/fuses.
+GRAPHIX,Existing instrument,Leybold GRAPHIX gauge controller,1,Required,Have,RS-232,Digital pressure measurement,,https://www.leybold.com/en-us/products/vacuum-measurement-and-control/vacuum-gauge-and-pump-controllers/graphix,Confirm exact model and baud rate.
+GRAPHIX,Interface,USB ? true RS-232 adapter,1,Required,Need to Buy,GRAPHIX,Laptop USB ? GRAPHIX RS-232,USBGear USBG-232 (FTDI),https://www.usbgear.com/usbg-232.html,Do not substitute TTL UART.
+GRAPHIX,Cable,Straight-through DB9 male?female serial cable,1,Required,Need to Buy,GRAPHIX,Connects RS-232 adapter to GRAPHIX rear DB9,StarTech MXT1001MBK or equivalent,https://www.startech.com/en-us/cables/mxt1001mbk,"Must be straight-through, not null-modem."
+GP475,Existing instrument,Granville-Phillips / MKS 475 Convectron controller,1,Required,Have,Analog,Pressure measurement,,https://www.mks.com/f/475-convectron-vacuum-gauge-controller,475001-00-T uses analog output.
+GP475,Connector,3.5 mm / 1?8 in analog-output breakout,1,Required,Need to Buy,GP475,Breaks rear analog phone jack out to field wiring,3.5 mm plug-to-terminal adapter,https://www.adafruit.com/product/2790,Verify exact jack contact assignment against manual.
+GP475,Cable,Shielded twisted-pair analog cable,1,Required,Need to Buy,GP475,Analog signal + return to DAQ,Belden 9451 or equivalent,https://www.digikey.com/en/products/detail/belden-inc/9451-008500/28740168,Route away from solenoid wiring.
+GP475,Analog front end,30.1 k? 0.1% divider resistor,1,Required,Need to Buy,DAQ CH0,Top resistor for input divider,,,One per populated analog channel.
+GP475,Analog front end,10.0 k? 0.1% divider resistor,1,Required,Need to Buy,DAQ CH0,Bottom resistor for input divider,,,One per populated analog channel.
+GP475,Analog front end,100 nF capacitor,1,Required,Need to Buy,DAQ CH0,Input low-pass filtering,,,One per populated analog channel.
+PDR-D-1,Existing instrument,MKS PDR-D-1 readout / Baratron power supply,1,Required,Have,Analog,Pressure measurement,,https://clara.nz/docs/hardware-unsorted/mks/Pdr-d-man.pdf,DC OUT referenced to S GND.
+PDR-D-1,Existing instrument,Attached MKS Baratron transducer,1,Required,Have,PDR-D-1,Actual pressure sensor,,,Record exact model and full-scale pressure.
+PDR-D-1,Cable,Shielded twisted-pair analog cable,1,Required,Need to Buy,PDR-D-1,DC OUT + S GND to DAQ,Belden 9451 or equivalent,https://www.digikey.com/en/products/detail/belden-inc/9451-008500/28740168,Order actual run length.
+PDR-D-1,Analog front end,30.1 k? 0.1% divider resistor,1,Required,Need to Buy,DAQ CH1,Top resistor for input divider,,,One per channel.
+PDR-D-1,Analog front end,10.0 k? 0.1% divider resistor,1,Required,Need to Buy,DAQ CH1,Bottom resistor for ADC divider,,,One per channel.
+PDR-D-1,Analog front end,100 nF capacitor,1,Required,Need to Buy,DAQ CH1,Input low-pass filtering,,,One per channel.
+LAUDA,Existing instrument,LAUDA RP 290 E NTRL,1,Required,Have,Ethernet,"Temperature control, monitoring, pump control, status/alarm access",,https://www.lauda.de/us/products/constant-temperature-equipment/thermostats/circulation-and-process-thermostats/pro,Serial S230000611; use Ethernet process interface.
+LAUDA,Network,Ethernet patch cable,1,Required,Have / Verify,LAUDA,LAUDA ? switch/dock/laptop,,,Cat5e/Cat6 is sufficient.
+Agilent 7890A,Existing instrument,Agilent Technologies 7890A GC,1,Required,Have,Ethernet + APG Remote,Gas chromatography; vendor software remains primary controller,,https://www.agilent.com/,Keep authoritative chromatogram acquisition in Agilent software.
+Agilent 7890A,Network,Ethernet patch cable,1,Required,Have / Verify,7890A,GC ? network for OpenLab/ChemStation,,,Cat5e/Cat6.
+Agilent 7890A,Sync interface,DB9 cable / breakout for APG REMOTE,1,Required,Have / Verify,7890A ? Due,Carries READY/START/STOP/PREPARE synchronization,,,Wire only documented APG pins.
+Agilent 7890A,Sync interface,Protected / optoisolated digital interface board,1,Recommended,TBD,7890A ? Due,Buffers/protects APG signals between GC and Due,,,Final circuit/part selection still needs design.
+Agilent 7890A,Optional analog,Shielded analog cable for SIG1/SIG2,1,Optional,Optional,7890A ? Feather,Live approximate detector trace in main GUI,Belden 9451 or equivalent,https://www.digikey.com/en/products/detail/belden-inc/9451-008500/28740168,Not a replacement for native Agilent acquisition.
+Network,Infrastructure,Small Ethernet switch,1,Conditional,Verify,LAUDA + 7890A + laptop,Provides enough wired network ports if dock/router does not,,,Needed only if existing network cannot accommodate both instruments.
+Network,Infrastructure,Additional Ethernet patch cable to laptop/switch uplink,1,Conditional,Verify,Network,Completes network topology,,,Depends on final topology.
+Mechanical,Structure,Rear mounting plate (acrylic or polycarbonate),1,Required,Need to Buy,Assembly,Structural mounting surface,,,Polycarbonate is more tolerant of drilled/bolted mounting.
+Mechanical,Structure,Front/top clear plate,1,Required,Need to Buy,Assembly,Protective cover / second plate,,,Material and thickness TBD.
+Mechanical,Structure,Plate-to-plate standoffs/spacers,1,Required,Need to Buy,Assembly,Separates two sheets,,,Length depends on tallest component.
+Mechanical,PCB mounting,M2.5/M3 PCB standoff assortment,1,Required,Need to Buy,Due / Feather / small boards,Mounts electronics above rear plate,,,Match board hole sizes.
+Mechanical,General mounting,M3 machine bolts + washers + nyloc nuts,1,Required,Need to Buy,Small brackets / cable hardware,General through-bolted mounting,,,Use washers against plate.
+Mechanical,Heavy mounting,M4 machine bolts + washers + nyloc nuts,1,Required,Need to Buy,DIN rail / cable bases / PSU,Structural through-bolted mounting,,,Good general standard for rear plate.
+Mechanical,DIN rail,35 mm DIN rail,1,Recommended,Need to Buy,Power/distribution,"Mounts PSU, converters, fuses, terminals",,,Length based on final layout.
+Cable management,Permanent routing,M4 bolt-mount cable-tie bases,10,Required,Optional,Internal cables,Fixes cable ties to rear plate,Panduit TM2S8-C,https://www.digikey.com/en/products/detail/panduit-corp/TM2S8-C/1306625,"Use M4 through-bolts, washer and nyloc nut."
+Cable management,Reusable strain relief,Reusable ratchet cable clamp near USB dock,1,Recommended,Optional,USB dock,Protects dock-connected cable bundle from yanks,HellermannTyton RCA90SM6 / 151-01643,https://www.hellermanntyton.com/products/clips-clamps-and-plugs/rca90sm6/151-01643,Fits ~6.2–13.7 mm bundle; M6 mounting.
+Cable management,Routing,Slotted wiring duct,1,Recommended,Optional,Assembly,Organizes longer cable runs,,,Prefer separate signal/analog and power ducts.
+Cable management,Ties,Cable ties,1,Required,Have,Internal cables,Works with TM2S8-C bases,,,Choose widths compatible with bases.
+Cable management,Reusable ties,Hook-and-loop cable straps,1,Recommended,Optional,Service loops,Reusable bundle restraint,,,Good near serviceable connections.
+Cable management,Termination,Wire ferrules + ferrule crimper,1,Recommended,Optional,DIN terminal wiring,Reliable stranded-wire terminations,,,Useful for 24 V distribution and converters.
+Cable management,Labeling,Wire / cable labels,1,Recommended,Have,All wiring,Identifies both ends of removable cables,,,Strongly recommended.
+Optional upgrades,ADC,ADS1115 16-bit ADC breakout,1,Optional,Optional,Analog DAQ,Higher-resolution/differential alternative to Feather ADC,Adafruit PID 1085,https://www.adafruit.com/product/1085,Not required for baseline pressure acquisition.
+Optional upgrades,Local logging,microSD card,1,Optional,Optional,Feather Adalogger,Local backup data logging,,,Feather already has microSD socket.
