@@ -21,14 +21,14 @@ All,Yes,1,1,ea,Power Supply,Mean well,36.15,Primary power supply,,https://www.mo
 Relays,Yes,1,1,ea,5V din regulator,Mean well,20.5,Power relay modules,,https://www.mouser.com/en/ProductDetail/MEAN-WELL/DDR-15G-5?qs=r5DSvlrkXmJh7kL7WR1h5g%3D%3D&mgh=1&utm_id=23744632239&utm_source=google&utm_medium=cpc&utm_marketing_tactic=amercorp&gad_source=1&gad_campaignid=23749957841&gclid=CjwKCAjwwfnUBhAtEiwAfQpAYmT-NBZnbkwYt6kx6aDbM1vVk3yDIFLnrfrOCeSRSvyvmhyrkYibZBoC9HwQAvD_BwE,,,
 All (serial devices),Yes,1,1,ea,USB hub (2-pack),anker,19.97,Connect all serial usb devices,,https://www.amazon.com/dp/B0FXYCPM8R/ref=twister_B0D9W7N1WG?_encoding=UTF8&th=1,,"One for adalogger and due, one for non-mcu serial devices",
 ,,,,,,,,,,,,,
-Mounting,Yes,1,1,ea (4ft),Small DIN Rail,Mean well,23.86,Mount din pwr supplies,,https://www.mouser.com/en/ProductDetail/MEAN-WELL/TS35-75-200?qs=1Kr7Jg1SGW8uBOHr%252BMBvyw%3D%3D&mgh=1&utm_id=23556925407&utm_source=google&utm_medium=cpc&utm_marketing_tactic=amercorp&gad_source=1&gad_campaignid=23566852966&gclid=CjwKCAjwwfnUBhAtEiwAfQpAYhRMq_8MhYCrO-MBs57myzAqbuJo0kw7SHUGX5r1NrkjOu9mI6x9exoCdeQQAvD_BwE,,,
+Mounting,Yes,1,1,ea (200mm),Small DIN Rail,Mean well,0.75,Mount din pwr supplies,,https://www.mouser.com/en/ProductDetail/MEAN-WELL/TS35-75-200?qs=1Kr7Jg1SGW8uBOHr%252BMBvyw%3D%3D&mgh=1&utm_id=23556925407&utm_source=google&utm_medium=cpc&utm_marketing_tactic=amercorp&gad_source=1&gad_campaignid=23566852966&gclid=CjwKCAjwwfnUBhAtEiwAfQpAYhRMq_8MhYCrO-MBs57myzAqbuJo0kw7SHUGX5r1NrkjOu9mI6x9exoCdeQQAvD_BwE,,,
 Mounting,Yes,2,2,ea,Acrylic,Simbalux,19.95,Bottom and top plates,,https://www.amazon.com/SimbaLux-Plexiglass-Transparent-Protective-Projects/dp/B084T6SXJ6/ref=sr_1_4?crid=36UFU9I27BVR4&dib=eyJ2IjoiMSJ9.Ma4iAn-W1QIn-LUyvMBHtL0aAqHdSngL_P4DeRskyafejYaevZFKMHir0kdKYCDAP5UZs8c4vu2TbJJRyKi0mjlSzPYJ-cG4EiwYBZpe-dhqyAnHQp8H0bv3DAZSzjsmMBcUzrdREsLeaSOzKA9e_IIom3vNCyad73LFM-V2erNc0Bwn0RcpQ4NNO4xG48xGT9R7IyZo5MYWK2P_flvXmiEE1w62v65rQ8h-1rnDNeo.nopnKMS8F-l-cBBWVWzNbzMLENW4op-LPi7N9x0Te8M&dib_tag=se&keywords=acrylic+3%2F8+inch+thick&qid=1789352423&sprefix=acrylic+3%2F%2Caps%2C226&sr=8-4,,,
-Mounting,yes,4,4,ft,"T-Slotted Framing Single 4-Slot Rail, Silver, 30 mm Square, Hollow",,,t-slot mounting,,https://www.mcmaster.com/5537T97-5537T739/,,,
+Mounting,yes,4,4,ft,"T-Slotted Framing Single 4-Slot Rail, Silver, 30 mm Square, Hollow",,23.86,t-slot mounting,,https://www.mcmaster.com/5537T97-5537T739/,,,
 Mounting,yes,2,2,ea (10-pack),"T-Slotted Framing End-Feed Single Nut for 30 mm High Rail, M6 Thread Size",,5.29,t-slot mounting,,https://www.mcmaster.com/5537T67/,,,
 Mounting,yes,1,1,ea (25-pack),"18-8 Stainless Steel Low-Profile Socket Head Screws with Hex Drive, M6 x 1 mm Thread, 18 mm Long",,17.59,t-slot mounting,,https://www.mcmaster.com/92855A617/,,,
 Mounting,yes,1,1,ea (25-pack),"Moisture-Resistant Cushioning Washer
 for 1/4"" Screw Size, 0.257"" ID, 0.5"" OD",,8.18,Acrylic frame mounting,,https://www.mcmaster.com/93650A145/,,,
-Mounting,,3,3,ea (10 pack),"Moisture-Resistant Cushioning Washer
+Mounting,yes,3,3,ea (10 pack),"Moisture-Resistant Cushioning Washer
 for Number 4 Screw Size, 0.125"" ID, 0.250"" OD",Mcmaster,8.6,Mount parts to acrylic backing,,https://www.mcmaster.com/93650A320/,,,
 Mounting,yes,1,1,ea,High Speed PETG 3d printer filament,Amazon,16.99,"Print any and all supporting structures, spacers, etc",,https://www.amazon.com/SUNLU-High-Speed-Filament-1-75mm/dp/B0D9NF7CJF/ref=sr_1_3?crid=JGS0XK2KFSAQ&dib=eyJ2IjoiMSJ9.zO334nERF02ZPGEcRzUxbBzTFBCNOdlsAxiJzatLb1F5AUQcCHth9UzyeI4UfpGBB5nPvwidT8Mh1gJiJIdpsJI472dgQJFQK-kRG54xKRBzCujvsonj2HBXcZ_rySf1Ysv5eHuytGnN1VsMpksAzr5QZRvDluk_oZZOOC3pWRfp95IQa7TJSK-eytyY9CzXkA2zp-u73qbLU77nSkMlEhzubNwLklmCvNfEcFqvAqs.lDZj4h2xK94nV5iMARHjLNe9v584KBcaWGmAmVSpONg&dib_tag=se&keywords=sunlu%2Bhigh%2Bspeed%2Bmatte%2Bpetg%2Bfilament&qid=1789757703&sprefix=sunlu%2Bpetg%2Bfilament%2Bhigh%2Bspe%2Caps%2C205&sr=8-3&th=1#averageCustomerReviewsAnchor,,,
 Mounting,yes,1,1,ea (5-pack),"18-8 Stainless Steel Low-Profile Socket Head Screws with Hex Drive, M6 x 1 mm Thread, 70 mm Long",Mcmaster,9.63,Plate to plate mounting bolts,,https://www.mcmaster.com/92855A645/,,,
@@ -36,6 +36,6 @@ Mounting,Yes,1,1,ea (100-pack),Corrosion-Resistant 18-8 Stainless Steel Nylon-In
 Mounting,Yes,2,2,ea (25-pack),18-8 Stainless Steel Low-Profile Socket Head Screws,Mcmaster,4.13,Mount parts to acrylic backing,,https://www.mcmaster.com/92855A319/,,,
 ,,,,,,,,,,,,,
 ,,,,,,,,,,,,,
-,,,,,,,378.11,,,,,,
+,,,,,,,378.86,,,,,,
 ,,,,,,,,,,,,,
 ,,,,,,,,,,,,,
