@@ -12,7 +12,23 @@ dependencies = [
     "PyYAML>=6.0",
     "pyqtgraph>=0.13",
     "numpy>=1.23",
+    "pyserial>=3.5",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "other/vacuum_instrumentation_bundle_v2/python",
+]
+testpaths = [
+    "tests",
+    "other/vacuum_instrumentation_bundle_v2/python/tests",
+]

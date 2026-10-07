@@ -6,3 +6,7 @@
 .venv/
 __pycache__/
 recorded_sessions/
+
+*.egg-info/
+
+.pytest_cache/

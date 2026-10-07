@@ -475,6 +475,19 @@ class ValvePanelCanvas(QtWidgets.QWidget):
         self.message.emit(f"{element.id} -> {'ACTIVE/OPEN' if active else 'INACTIVE/CLOSED'}")
         self.update()
 
+    def apply_reported_state(self, element_id: str, active: bool) -> bool:
+        """Show a state reported by the hardware without sending a command.
+
+        Returns True when the displayed state changed.
+        """
+        element = self.panel_config.element_by_id(element_id)
+        if bool(element.initially_active) == bool(active):
+            return False
+        element.initially_active = bool(active)
+        self.state_changed.emit()
+        self.update()
+        return True
+
     def _set_element_locked(self, element: ActuatedElementConfig, locked: bool) -> None:
         element.locked = bool(locked)
         self.state_changed.emit()

@@ -24,9 +24,12 @@ def utc_now_iso() -> str:
 class DeviceDefinition:
     """Configuration for one independently managed hardware/serial device.
 
-    ``communicator_key`` selects an object from the mapping passed to
-    ``run_app(..., communicators={...})``.  The YAML intentionally stores only
-    configuration—not live Python objects—so device drivers remain injectable.
+    ``driver`` names a registered driver (see ``pneumatic_valve_panel.drivers``)
+    that the application constructs with ``options`` as keyword arguments.
+    ``demo_driver`` is used instead when the app runs with ``--demo``.
+    ``communicator_key`` remains for code that injects objects through
+    ``run_app(..., communicators={...})``; an injected object wins over
+    ``driver``.
     """
 
     device_id: str
@@ -36,6 +39,10 @@ class DeviceDefinition:
     description: str = ""
     connection: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    driver: str = ""
+    demo_driver: str = ""
+    options: dict[str, Any] = field(default_factory=dict)
+    reconnect_interval_s: float = 5.0
 
     @classmethod
     def from_dict(cls, device_id: str, data: Mapping[str, Any]) -> "DeviceDefinition":
@@ -45,19 +52,33 @@ class DeviceDefinition:
             communicator_key=str(data.get("communicator_key", device_id)),
             command_target=bool(data.get("command_target", False)),
             description=str(data.get("description", "")),
-            connection=dict(data.get("connection", {})),
-            metadata=dict(data.get("metadata", {})),
+            connection=dict(data.get("connection") or {}),
+            metadata=dict(data.get("metadata") or {}),
+            driver=str(data.get("driver") or ""),
+            demo_driver=str(data.get("demo_driver") or ""),
+            options=dict(data.get("options") or {}),
+            reconnect_interval_s=float(data.get("reconnect_interval_s", 5.0)),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "enabled": self.enabled,
-            "communicator_key": self.communicator_key or self.device_id,
-            "command_target": self.command_target,
-            "description": self.description,
-            "connection": dict(self.connection),
-            "metadata": dict(self.metadata),
-        }
+        data: dict[str, Any] = {"enabled": self.enabled}
+        if self.driver:
+            data["driver"] = self.driver
+        if self.demo_driver:
+            data["demo_driver"] = self.demo_driver
+        data.update(
+            {
+                "communicator_key": self.communicator_key or self.device_id,
+                "command_target": self.command_target,
+                "description": self.description,
+                "reconnect_interval_s": self.reconnect_interval_s,
+                "connection": dict(self.connection),
+            }
+        )
+        if self.options:
+            data["options"] = dict(self.options)
+        data["metadata"] = dict(self.metadata)
+        return data
 
 
 @dataclass(frozen=True)

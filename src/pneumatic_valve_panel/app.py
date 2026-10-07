@@ -21,22 +21,17 @@ def run_app(
     device_config_path: str | Path | None = None,
     actuator_config_path: str | Path | None = None,
     data_root: str | Path | None = None,
+    demo_mode: bool = False,
 ) -> int:
     """Create and run the Qt application.
 
-    Preferred multi-device usage::
+    Devices are normally built from the ``driver:`` entries in devices.yaml
+    (see ``pneumatic_valve_panel.drivers``). ``demo_mode=True`` uses each
+    device's ``demo_driver`` instead, so the app runs with no hardware.
 
-        run_app(
-            config_path="config/valve_panel.yaml",
-            device_config_path="config/devices.yaml",
-            communicators={
-                "controller": ControllerCommunicator(...),
-                "flow_meter": FlowMeterCommunicator(...),
-            },
-        )
-
-    ``communicator=...`` remains supported and is assigned to the configured
-    command-target device for backwards compatibility.
+    Advanced use: ``communicators={"controller": obj}`` injects ready-made
+    objects by ``communicator_key`` and takes precedence over ``driver``.
+    ``communicator=...`` is still accepted for the command-target device.
     """
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
@@ -49,6 +44,7 @@ def run_app(
         device_config_path=Path(device_config_path) if device_config_path else None,
         actuator_config_path=Path(actuator_config_path) if actuator_config_path else None,
         data_root=Path(data_root) if data_root else None,
+        demo_mode=demo_mode,
     )
     window.show()
     return app.exec_()

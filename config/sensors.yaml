@@ -1,5 +1,8 @@
-# Sensor IDs are globally qualified as <source_device>.<logical_channel>.
-# source_channel is the local key emitted by that device's packet parser.
+# Sensors shown in the dashboard and written to recorded sessions.
+#
+# Sensor IDs are <device id>.<channel>. source_device must match a device in
+# devices.yaml, and source_channel is the name that device's driver reports
+# (see the driver file in src/pneumatic_valve_panel/drivers/).
 sensors:
   # controller.pressure_supply:
   #   label: Supply Pressure
@@ -35,14 +38,28 @@ sensors:
   #   metadata:
   #     quantity: flow_rate
 
+  # Only produced by the simulated controller (python run_app.py --demo); the
+  # real relay firmware has no temperature sensor.
   controller.temperature:
-    label: Controller Temperature
+    label: Controller Temperature (demo only)
     source_device: controller
     source_channel: controller_temperature
     unit: °C
     expected_sampling_hz: 1
     enabled: true
     default_log: false
+    metadata:
+      quantity: temperature
+
+  thermocouple.temperature:
+    label: Thermocouple
+    source_device: thermocouple
+    source_channel: temperature
+    unit: °C
+    expected_sampling_hz: 2
+    enabled: true
+    default_log: true
+    description: MCP9601 K-type thermocouple (enable the device in devices.yaml).
     metadata:
       quantity: temperature
 

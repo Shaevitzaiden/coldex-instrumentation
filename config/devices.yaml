@@ -1,24 +1,54 @@
-# Each enabled device receives its own communicator owner, command queue, and
-# worker thread. communicator_key selects an object passed to run_app().
+# Hardware devices used by the dashboard.
+#
+# Each enabled device runs in its own background thread. If it cannot connect
+# (wrong COM port, unplugged, not powered) the dashboard keeps running, shows
+# the reason in the Device Connectivity tile and retries every
+# reconnect_interval_s seconds.
+#
+#   driver        which driver talks to it   (python run_app.py --list-drivers)
+#   demo_driver   simulated stand-in used by  python run_app.py --demo
+#   connection    passed to the driver's connect(): port, baudrate, ...
+#   options       passed to the real driver when it is created (optional;
+#                 not used in --demo mode)
+#
+# COM port numbers differ between computers: check Windows Device Manager >
+# Ports (COM & LPT) after plugging a device in.
+# How to add a new instrument: docs/ADDING_A_DEVICE.md
 devices:
   controller:
     enabled: true
-    communicator_key: controller
+    driver: relay_controller
+    demo_driver: demo_controller
     command_target: true
-    description: Relay controller and synchronized onboard sensor stream.
+    description: Arduino Due pneumatic relay controller (24 relays).
+    reconnect_interval_s: 5
     connection:
-      # These values are passed to connect(...) only when the injected
-      # communicator accepts matching keyword arguments.
       port: COM14
       baudrate: 9600
       timeout_s: 0.05
+      # Seconds to wait for the Due to boot after the port opens.
+      boot_wait_s: 3.0
+    options:
+      # How often the app asks the controller which relays are on.
+      status_poll_interval_s: 1.0
 
   environment:
+    # SIMULATED: this device produces fake ambient temperature/humidity so the
+    # temperature tiles have data. Set enabled: false once real sensors exist,
+    # otherwise the fake values are also written to recorded sessions.
     enabled: true
-    communicator_key: environment
+    driver: demo_environment
+    demo_driver: demo_environment
     command_target: false
-    description: Example independent environmental serial instrument.
+    description: SIMULATED ambient temperature/humidity (not real data).
+
+  thermocouple:
+    # MCP9601 K-type thermocouple board running firmware/thermocouple_reader.
+    # Set enabled: true and the right COM port once it is connected.
+    enabled: false
+    driver: mcp9601_thermocouple
+    command_target: false
+    description: MCP9601 K-type thermocouple (firmware/thermocouple_reader).
     connection:
-      port: COM6
-      baudrate: 115200
-      timeout_s: 0.1
+      port: COM5
+      baudrate: 9600

@@ -26,6 +26,7 @@ from .data import (
     load_sensor_definitions,
     save_dashboard_config,
 )
+from .data.models import CommandResult
 from .hardware import DeviceManager
 from .models import PanelConfig
 from .recording import SessionRecorder
@@ -68,10 +69,14 @@ class MainWindow(QtWidgets.QMainWindow):
         device_config_path: Path | None = None,
         actuator_config_path: Path | None = None,
         data_root: Path | None = None,
+        demo_mode: bool = False,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
+        self.demo_mode = bool(demo_mode)
+        # Last relay states reported by each controller: {(device_id, relay): active}
+        self._reported_relay_states: dict[tuple[str, int], bool] = {}
         self.config_path = Path(config_path)
         self.dashboard_config_path = Path(dashboard_config_path or self.config_path.with_name("dashboard.yaml"))
         self.sensor_config_path = Path(sensor_config_path or self.config_path.with_name("sensors.yaml"))
@@ -163,6 +168,7 @@ class MainWindow(QtWidgets.QMainWindow):
             actuator_registry=self.actuator_registry,
             communicators=communicator_map,
             stream_hub=self.stream_hub,
+            demo_mode=self.demo_mode,
             parent=self,
         )
         # Alias retained because a few external integrations may still refer to
@@ -190,6 +196,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.layout_changed.connect(self._on_layout_changed)
         self.canvas.selection_items_changed.connect(self._on_selection_items_changed)
         self.canvas.history_changed.connect(self._on_history_changed)
+        self.data_hub.relay_result_received.connect(self._on_command_result)
 
         self.properties_panel = PropertiesPanel(
             actuator_registry=self.actuator_registry,
@@ -417,6 +424,64 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage("Actuator registry changed")
         if hasattr(self, "panel_config"):
             self._update_window_title()
+
+    # ------------------------------------------------------------------
+    # Keeping the valve panel in step with the controller
+    # ------------------------------------------------------------------
+    @QtCore.pyqtSlot(object)
+    def _on_command_result(self, result: object) -> None:
+        """Correct the valve panel from command results and status reports.
+
+        The panel changes state as soon as a valve is clicked. This handler
+        then makes the display agree with the controller: a confirmed command
+        keeps the new state, a failed one puts the previous state back, and a
+        periodic status report overrides anything that drifted (for example
+        after the controller reset and released every relay).
+        """
+        if not isinstance(result, CommandResult):
+            return
+        if result.command_type == "relay_states":
+            self._sync_panel_to_relay_states(result.device_id, dict(result.payload.get("states", {})))
+            return
+        if result.command_type != "set_element_state":
+            return
+
+        element_id = str(result.payload.get("element_id", ""))
+        if element_id not in {element.id for element in self.panel_config.elements}:
+            return  # e.g. crusher-tile commands, handled by that tile
+        requested = bool(result.payload.get("is_active"))
+        if result.success:
+            self.canvas.apply_reported_state(element_id, requested)
+            return
+
+        relay = result.payload.get("relay_number")
+        previous = self._reported_relay_states.get((result.device_id, int(relay)) if relay else ("", 0))
+        restored = (not requested) if previous is None else previous
+        self.canvas.apply_reported_state(element_id, restored)
+        self.statusBar().showMessage(
+            f"{element_id} did NOT change: {result.message}", 15000
+        )
+
+    def _sync_panel_to_relay_states(self, device_id: str, states: dict[int, bool]) -> None:
+        for relay, active in states.items():
+            self._reported_relay_states[(device_id, int(relay))] = bool(active)
+
+        corrected: list[str] = []
+        for element in self.panel_config.elements:
+            actuator = self.actuator_registry.maybe_get(element.actuator_id)
+            if actuator is None or actuator.device_id != device_id or actuator.relay_number is None:
+                continue
+            if actuator.relay_number not in states:
+                continue
+            active = states[actuator.relay_number]
+            if self.canvas.apply_reported_state(element.id, active):
+                corrected.append(f"{element.id} -> {'ACTIVE/OPEN' if active else 'INACTIVE/CLOSED'}")
+        if corrected:
+            self.data_hub.log(
+                f"Valve panel updated to match {device_id}: " + ", ".join(corrected),
+                level="WARNING",
+                source=f"devices.{device_id}.status",
+            )
 
     def set_communicator(self, communicator: Any | None, device_id: str | None = None) -> None:
         """Replace one live device communicator after startup.
@@ -1126,7 +1191,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_window_title(self) -> None:
         markers = ("*" if self._dirty else "") + ("A" if self._actuator_dirty else "") + ("◆" if self._dashboard_dirty else "")
-        self.setWindowTitle(f"{markers}{self.panel_config.title} — {self.config_path.name}")
+        demo = "[DEMO - SIMULATED HARDWARE] " if self.demo_mode else ""
+        self.setWindowTitle(f"{demo}{markers}{self.panel_config.title} — {self.config_path.name}")
 
     # ------------------------------------------------------------------
     # Valve-layout actions

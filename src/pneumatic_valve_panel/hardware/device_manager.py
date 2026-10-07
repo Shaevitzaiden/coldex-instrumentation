@@ -28,6 +28,11 @@ from ..data.models import (
     SensorFrame,
 )
 from ..data.stream_hub import StreamHub
+from ..drivers import create_driver
+
+
+class _ConnectionLost(Exception):
+    """Internal signal from the service loop to the reconnect loop."""
 
 
 class DeviceWorker(QtCore.QObject):
@@ -57,50 +62,122 @@ class DeviceWorker(QtCore.QObject):
         self.channel_map = dict(channel_map)
         self._running = threading.Event()
         self._sequence = 0
+        self._connected = False
+        # Human-readable reason shown when ``communicator`` is None (for
+        # example "Unknown driver 'graphix'").
+        self.unavailable_reason = ""
+        self.warn_unused_connection = True
 
     @QtCore.pyqtSlot()
     def run(self) -> None:
-        self._running.set()
-        connected = False
-        try:
-            self._connect_communicator()
-            connected = self.communicator is not None
-            self._publish_status(connected, "Connected" if connected else "No communicator supplied")
-            self._log(
-                "INFO" if connected else "WARNING",
-                f"devices.{self.definition.device_id}",
-                f"Device {self.definition.device_id} connected"
-                if connected
-                else f"Device {self.definition.device_id} has no communicator",
-            )
+        """Connect, service the device, and reconnect after failures.
 
+        A failed connection or a lost connection never ends the worker: it
+        reports the reason, waits ``reconnect_interval_s`` and tries again
+        until the application shuts down.
+        """
+        self._running.set()
+        source = f"devices.{self.definition.device_id}"
+        try:
+            if self.communicator is None:
+                reason = self.unavailable_reason or "No driver or communicator configured"
+                self._publish_status(False, reason)
+                self._log("WARNING", source, f"Device {self.definition.device_id}: {reason}")
+                self._idle_until_stopped(None)
+                return
+
+            attempt = 0
             while self._running.is_set():
-                did_work = self._process_commands()
-                packets = self._read_packets()
-                if packets:
-                    did_work = True
-                    for packet in packets:
-                        self._dispatch_packet(packet)
-                if not did_work:
-                    # Avoid a hot spin while keeping command/sensor latency low.
-                    time.sleep(0.002)
+                attempt += 1
+                try:
+                    self._connect_communicator()
+                except Exception as exc:
+                    message = f"Connect failed: {exc}"
+                    self._publish_status(False, message)
+                    # Log the first failure loudly, then only occasionally so a
+                    # missing instrument does not flood the log.
+                    if attempt == 1 or attempt % 12 == 0:
+                        self._log(
+                            "ERROR" if attempt == 1 else "WARNING",
+                            source,
+                            f"{message} (retrying every {self.definition.reconnect_interval_s:g} s)",
+                        )
+                    self._safe_disconnect()
+                    self._idle_until_stopped(self.definition.reconnect_interval_s)
+                    continue
+
+                attempt = 0
+                self._connected = True
+                identity = getattr(self.communicator, "firmware_identity", None)
+                self._publish_status(True, "Connected")
+                self._log(
+                    "INFO",
+                    source,
+                    f"Device {self.definition.device_id} connected"
+                    + (f" ({identity})" if identity else ""),
+                )
+                try:
+                    self._service_loop()
+                except _ConnectionLost as exc:
+                    self._log(
+                        "ERROR",
+                        source,
+                        f"Connection lost: {exc.__cause__ or exc}. Reconnecting in "
+                        f"{self.definition.reconnect_interval_s:g} s",
+                    )
+                finally:
+                    self._connected = False
+                    self._safe_disconnect()
+                    self._publish_status(False, "Disconnected")
+                if self._running.is_set():
+                    self._idle_until_stopped(self.definition.reconnect_interval_s)
+        except Exception as exc:  # pragma: no cover - defensive last resort
+            self._log("ERROR", source, f"Device worker stopped after unexpected error: {exc}")
+            self._publish_status(False, f"Stopped: {exc}")
+        finally:
+            self.finished.emit()
+
+    def _service_loop(self) -> None:
+        while self._running.is_set():
+            did_work = self._process_commands()
+            packets = self._read_packets()
+            if packets:
+                did_work = True
+                for packet in packets:
+                    self._dispatch_packet(packet)
+            if not did_work:
+                # Avoid a hot spin while keeping command/sensor latency low.
+                time.sleep(0.002)
+
+    def _idle_until_stopped(self, seconds: float | None) -> None:
+        """Wait (forever when ``seconds`` is None) while failing queued commands.
+
+        Commands sent while the device is offline are answered immediately with
+        a failure so the GUI can show that nothing happened.
+        """
+        deadline = None if seconds is None else time.monotonic() + max(0.1, float(seconds))
+        while self._running.is_set() and (deadline is None or time.monotonic() < deadline):
+            self._process_commands()
+            time.sleep(0.05)
+
+    def _safe_disconnect(self) -> None:
+        try:
+            self._disconnect_communicator()
         except Exception as exc:
             self._log(
-                "ERROR",
+                "WARNING",
                 f"devices.{self.definition.device_id}",
-                f"Device worker stopped after error: {exc}",
+                f"Error while closing communicator: {exc}",
             )
-        finally:
-            try:
-                self._disconnect_communicator()
-            except Exception as exc:
-                self._log(
-                    "ERROR",
-                    f"devices.{self.definition.device_id}",
-                    f"Error while closing communicator: {exc}",
-                )
-            self._publish_status(False, "Disconnected")
-            self.finished.emit()
+
+    def _is_connection_lost(self, exc: BaseException) -> bool:
+        """Decide whether ``exc`` means the link is gone (vs. one bad reply)."""
+        if isinstance(exc, TimeoutError):
+            return False
+        if isinstance(exc, (ConnectionError, OSError)):
+            # pyserial's SerialException is an OSError subclass.
+            return True
+        return getattr(self.communicator, "is_connected", True) is False
 
     def stop(self) -> None:
         self._running.clear()
@@ -122,9 +199,15 @@ class DeviceWorker(QtCore.QObject):
 
     def _execute_command(self, command: DeviceCommand) -> None:
         result_payload = dict(command.payload)
+        lost: BaseException | None = None
         try:
             if self.communicator is None:
-                raise RuntimeError(f"No communicator attached to {self.definition.device_id}")
+                raise RuntimeError(
+                    f"{self.definition.device_id} is unavailable: "
+                    f"{self.unavailable_reason or 'no driver configured'}"
+                )
+            if not self._connected:
+                raise RuntimeError(f"{self.definition.device_id} is not connected")
 
             if command.command_type == "set_element_state":
                 self._execute_element_command(command.payload)
@@ -152,6 +235,9 @@ class DeviceWorker(QtCore.QObject):
                 details={**result_payload, "origin": command.origin},
             )
         except Exception as exc:
+            if self._connected and self._is_connection_lost(exc):
+                lost = exc
+            label = result_payload.get("element_id", command.command_type)
             result = CommandResult(
                 device_id=self.definition.device_id,
                 command_type=command.command_type,
@@ -163,10 +249,12 @@ class DeviceWorker(QtCore.QObject):
             self._log(
                 "ERROR",
                 f"devices.{self.definition.device_id}.command",
-                f"Command failed: {command.command_type}: {exc}",
+                f"Command failed for {label}: {exc}",
                 details={**result_payload, "origin": command.origin},
             )
         self.stream_hub.publish_command_result(result)
+        if lost is not None:
+            raise _ConnectionLost(str(lost)) from lost
 
     def _execute_element_command(self, payload: dict[str, Any]) -> None:
         element_id = str(payload["element_id"])
@@ -219,8 +307,10 @@ class DeviceWorker(QtCore.QObject):
                 except TypeError:
                     result = reader()
         except Exception as exc:
+            if self._is_connection_lost(exc):
+                raise _ConnectionLost(str(exc)) from exc
             self._log(
-                "ERROR",
+                "WARNING" if isinstance(exc, TimeoutError) else "ERROR",
                 f"devices.{self.definition.device_id}.read",
                 f"Read error: {exc}",
             )
@@ -262,6 +352,9 @@ class DeviceWorker(QtCore.QObject):
                 details=dict(packet.get("details", {})),
             )
             return
+        if packet_type == "relay_states":
+            self._publish_relay_states(packet)
+            return
         if packet_type in {"relay_result", "ack", "command_result"}:
             payload = dict(packet)
             payload.setdefault("device_id", self.definition.device_id)
@@ -271,6 +364,37 @@ class DeviceWorker(QtCore.QObject):
             "DEBUG",
             f"devices.{self.definition.device_id}.packet",
             f"Unhandled packet type {packet_type}: {packet!r}",
+        )
+
+    def _publish_relay_states(self, packet: dict[str, Any]) -> None:
+        """Forward a controller status report (one-based relay numbers).
+
+        Published on the command-result channel with ``command_type`` set to
+        ``"relay_states"`` so GUI code can keep the valve panel in step with
+        what the controller reports it is driving.
+        """
+        states = {int(relay): bool(active) for relay, active in dict(packet.get("states", {})).items()}
+        faults = [int(relay) for relay in packet.get("faults", [])]
+        manual = [int(relay) for relay in packet.get("manual", [])]
+        source = f"devices.{self.definition.device_id}.status"
+        if faults:
+            self._log(
+                "ERROR",
+                source,
+                f"Relay output readback fault on relay(s) {faults}: the controller pin does "
+                "not match its commanded level. Check wiring before relying on these channels.",
+                details={"faults": faults},
+            )
+        if manual:
+            self._log("INFO", source, f"Relay(s) {manual} are in MANUAL on the switch panel")
+        self.stream_hub.publish_command_result(
+            CommandResult(
+                device_id=self.definition.device_id,
+                command_type="relay_states",
+                success=True,
+                message="Relay status report",
+                payload={"states": states, "faults": faults, "manual": manual},
+            )
         )
 
     def _publish_sensor_packet(self, packet: dict[str, Any]) -> None:
@@ -351,22 +475,31 @@ class DeviceWorker(QtCore.QObject):
             method = getattr(self.communicator, name, None)
             if not callable(method):
                 continue
-            # Prefer passing configured connection fields when accepted.  Fall
-            # back to a no-argument call for preconfigured communicator objects.
+            # Pass the configured connection fields the method accepts.  Errors
+            # raised *inside* connect() propagate so the real reason (wrong COM
+            # port, device not answering) reaches the GUI and log.
             try:
                 signature = inspect.signature(method)
-                accepts_kwargs = any(
-                    parameter.kind is inspect.Parameter.VAR_KEYWORD
-                    for parameter in signature.parameters.values()
-                )
-                named = {
-                    key: value
-                    for key, value in self.definition.connection.items()
-                    if key in signature.parameters or accepts_kwargs
-                }
-                method(**named)
             except (TypeError, ValueError):
                 method()
+                return
+            accepts_kwargs = any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+            named = {
+                key: value
+                for key, value in self.definition.connection.items()
+                if key in signature.parameters or accepts_kwargs
+            }
+            ignored = sorted(set(self.definition.connection) - set(named))
+            if ignored and self.warn_unused_connection:
+                self._log(
+                    "WARNING",
+                    f"devices.{self.definition.device_id}",
+                    f"connection settings {ignored} are not used by this driver",
+                )
+            method(**named)
             return
 
     def _disconnect_communicator(self) -> None:
@@ -466,6 +599,7 @@ class DeviceManager(QtCore.QObject):
         actuator_registry: ActuatorRegistry,
         communicators: dict[str, Any] | None,
         stream_hub: StreamHub,
+        demo_mode: bool = False,
         parent: QtCore.QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -474,6 +608,7 @@ class DeviceManager(QtCore.QObject):
         self.actuator_registry = actuator_registry
         self.communicators = dict(communicators or {})
         self.stream_hub = stream_hub
+        self.demo_mode = bool(demo_mode)
         self.services: dict[str, SerialDeviceService] = {}
 
         command_targets = [d.device_id for d in self.device_definitions.values() if d.command_target]
@@ -482,23 +617,50 @@ class DeviceManager(QtCore.QObject):
         )
         self._build_services()
 
+    def _resolve_communicator(self, definition: DeviceDefinition) -> tuple[Any, str]:
+        """Return ``(communicator or None, reason when None)`` for one device.
+
+        Precedence: an object injected through ``run_app(communicators=...)``,
+        then the YAML ``driver`` (or ``demo_driver`` in demo mode).
+        """
+        injected = self.communicators.get(definition.communicator_key or definition.device_id)
+        if injected is not None and not self.demo_mode:
+            return injected, ""
+        driver_name = definition.demo_driver if self.demo_mode else definition.driver
+        if not driver_name:
+            if self.demo_mode:
+                return None, "No demo_driver set in devices.yaml; device not simulated"
+            return None, "No driver set in devices.yaml"
+        # ``options`` belong to the real driver; demo drivers take none.
+        options = {} if self.demo_mode else definition.options
+        try:
+            return create_driver(driver_name, options), ""
+        except Exception as exc:
+            return None, f"Driver {driver_name!r} could not be created: {exc}"
+
+    def _make_service(self, definition: DeviceDefinition, communicator: Any, reason: str = "") -> SerialDeviceService:
+        channel_map = {
+            sensor.source_channel: sensor.sensor_id
+            for sensor in self.sensor_definitions.values()
+            if sensor.source_device == definition.device_id
+        }
+        service = SerialDeviceService(
+            definition=definition,
+            communicator=communicator,
+            stream_hub=self.stream_hub,
+            channel_map=channel_map,
+            parent=self,
+        )
+        service.worker.unavailable_reason = reason
+        service.worker.warn_unused_connection = not self.demo_mode
+        return service
+
     def _build_services(self) -> None:
         for definition in self.device_definitions.values():
             if not definition.enabled:
                 continue
-            communicator = self.communicators.get(definition.communicator_key or definition.device_id)
-            channel_map = {
-                sensor.source_channel: sensor.sensor_id
-                for sensor in self.sensor_definitions.values()
-                if sensor.source_device == definition.device_id
-            }
-            self.services[definition.device_id] = SerialDeviceService(
-                definition=definition,
-                communicator=communicator,
-                stream_hub=self.stream_hub,
-                channel_map=channel_map,
-                parent=self,
-            )
+            communicator, reason = self._resolve_communicator(definition)
+            self.services[definition.device_id] = self._make_service(definition, communicator, reason)
 
     def start(self) -> None:
         for service in self.services.values():
@@ -516,18 +678,7 @@ class DeviceManager(QtCore.QObject):
         if old is not None:
             old.stop()
         self.communicators[definition.communicator_key or device_id] = communicator
-        channel_map = {
-            sensor.source_channel: sensor.sensor_id
-            for sensor in self.sensor_definitions.values()
-            if sensor.source_device == device_id
-        }
-        service = SerialDeviceService(
-            definition=definition,
-            communicator=communicator,
-            stream_hub=self.stream_hub,
-            channel_map=channel_map,
-            parent=self,
-        )
+        service = self._make_service(definition, communicator)
         self.services[device_id] = service
         service.start()
 

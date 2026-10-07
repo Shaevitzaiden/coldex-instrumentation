@@ -1,0 +1,92 @@
+[
+  {
+    "filename": "leybold_graphix_instruction_manual.pdf",
+    "hardware": "Leybold GRAPHIX ONE/TWO/THREE",
+    "url": "https://global.shop.leybold.com/medias/GA300550402-002-Instructions.pdf?attachment=true&context=bWFzdGVyfHJvb3R8NDQ5NjgzMnxhcHBsaWNhdGlvbi9wZGZ8YUdZeUwyaGhNQzgyTnpJek1qUTVNRGc0TVRBMU5DOUhRVE13TURVMU1EUXdNbDh3TURKZlNXNXpkSEoxWTNScGIyNXpMbkJrWmd8ZTE2OTQ0NzFiYjEwNzZiM2MxMDAxYTBlZTFlZjFiZmQ0ZTlkOGZlN2FiYTdkZmEyMWU1OTI4M2JiNGUwMThjNw",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "mks_series_475_convectron_manual.pdf",
+    "hardware": "Granville-Phillips / MKS Series 475",
+    "url": "https://www.mks.com/mam/celum/celum_assets/resources/GP-475Controller475101-MAN.pdf?2=",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "mks_pdr_d1_d2_manual.pdf",
+    "hardware": "MKS PDR-D-1 / PDR-D-2",
+    "url": "https://clara.nz/docs/hardware-unsorted/mks/Pdr-d-man.pdf",
+    "source_type": "archive-mirror"
+  },
+  {
+    "filename": "lauda_pro_base_operation_manual.pdf",
+    "hardware": "LAUDA PRO with Base remote control unit / RP 290 E family",
+    "url": "https://www.lauda.de/fileadmin/assets/downloads/pdf/Q4DA-E_13-020-EN_PRO_Base_V6R25_translation.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "lauda_rp290e_datasheet.pdf",
+    "hardware": "LAUDA PRO RP 290 E",
+    "url": "https://www.lauda.de/pim/datasheet/LAUDA_RP290E_L002610_en_20241111_120127.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "agilent_7890a_operating_guide.pdf",
+    "hardware": "Agilent 7890A GC",
+    "url": "https://www.agilent.com/cs/library/usermanuals/public/G3430-90011.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "agilent_7890a_user_manual_collection.pdf",
+    "hardware": "Agilent 7890A GC",
+    "url": "https://www.agilent.com/cs/library/usermanuals/public/7890A%20GC%20User%20Manual%20Collection.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "agilent_7890a_advanced_user_guide.pdf",
+    "hardware": "Agilent 7890A GC",
+    "url": "https://www.chem-agilent.com/pdf/G3430-90015.pdf",
+    "source_type": "legacy-mirror"
+  },
+  {
+    "filename": "arduino_due_datasheet.pdf",
+    "hardware": "Arduino Due",
+    "url": "https://docs-content.arduino.cc/resources/datasheets/A000062-datasheet.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "adafruit_feather_rp2040_adalogger_guide.pdf",
+    "hardware": "Adafruit Feather RP2040 Adalogger",
+    "url": "https://cdn-learn.adafruit.com/downloads/pdf/adafruit-feather-rp2040-adalogger.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "rp2040_datasheet.pdf",
+    "hardware": "Raspberry Pi RP2040",
+    "url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "microchip_mcp960x_datasheet.pdf",
+    "hardware": "Microchip MCP9600/MCP9601",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP960X-L0X-RL0X-Data-Sheet-20005426F.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "meanwell_hdr150_datasheet.pdf",
+    "hardware": "Mean Well HDR-150",
+    "url": "https://www.meanwell.com/Upload/PDF/HDR-150/HDR-150-SPEC.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "meanwell_ddr15_datasheet.pdf",
+    "hardware": "Mean Well DDR-15",
+    "url": "https://www.meanwell.com/Upload/PDF/DDR-15/DDR-15-spec.pdf",
+    "source_type": "manufacturer"
+  },
+  {
+    "filename": "smc_vqc1000_2000_operation_manual.pdf",
+    "hardware": "SMC VQC1000 / VQC2000 manifold valves",
+    "url": "https://www.smcworld.com/assets/manual/en-jp/files/VQC1000V-OMM0002.pdf",
+    "source_type": "manufacturer"
+  }
+]

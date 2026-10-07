@@ -1,164 +1,168 @@
 #!/usr/bin/env python3
+"""Small, reusable line-oriented serial transport.
 
-# Serial communication libraries
+This class deliberately handles only connection lifecycle, framing, and basic
+line reads/writes. Device-specific command semantics belong in subclasses such
+as :class:`PneumaticCommunicator`.
+"""
+
+from __future__ import annotations
+
+import atexit
+import time
+from typing import Any
+
 import serial
 from serial.serialutil import SerialException
-from serial.tools import list_ports
-
-# Logging setup - finish later
-import logging
-from logdecorator import log_on_start, log_on_end
-
-# time
-import time
-
-# Shutdown behavior
-import atexit
 
 
-class SerialCommunicator():
-    """My attempt at a semi generalized serial communications interface"""
-    def __init__(self, close_port_on_exit=True):
-        self.port = None
-        self.baud_rate = None
-        self.ser = None 
-        
-        self.outbound_structure = {
-            "msg_size": 2, # bytes
+class SerialCommunicator:
+    """Semi-general serial communicator used by hardware-specific adapters.
+
+    ``outbound_structure`` controls optional start/end markers added to outgoing
+    commands. Incoming data is currently treated as newline-delimited text,
+    which matches the Arduino relay-controller protocol used by this project.
+    """
+
+    def __init__(self, close_port_on_exit: bool = True) -> None:
+        self.port: str | None = None
+        self.baud_rate: int | None = None
+        self.ser: serial.Serial | None = None
+
+        self.outbound_structure: dict[str, Any] = {
+            "msg_size": 2,
             "start_character": None,
             "delimiter": None,
             "end_character": None,
-            "encoding": "UTF-8"
-            }
-        
-        self.inbound_structure = {
-            "msg_size": 1, # bytes
+            "encoding": "UTF-8",
+        }
+        self.inbound_structure: dict[str, Any] = {
+            "msg_size": 1,
             "start_character": None,
             "delimiter": None,
             "end_character": None,
-            "encoding": "UTF-8"
+            "encoding": "UTF-8",
         }
 
-        # Dictionary to store command mappings
-        self.commands = {}
+        # Retained for future command-name mappings used by some instruments.
+        self.commands: dict[str, Any] = {}
 
-        # Program exit behavior to close port
         if close_port_on_exit:
             atexit.register(self.disconnect)
- 
-    def connect(self, port, baud_rate, timeout=1, sleep_time=0.01):
-        """Open the serial connection with the specified port and baudrate"""
+
+    @property
+    def is_connected(self) -> bool:
+        """Return True only while a real serial port is open."""
+        return bool(self.ser is not None and self.ser.is_open)
+
+    def connect(
+        self,
+        port: str,
+        baud_rate: int,
+        timeout: float = 1.0,
+        sleep_time: float = 0.01,
+    ) -> None:
+        """Open ``port`` and raise ``SerialException`` if it cannot be opened.
+
+        Raising the connection error is intentional: ``DeviceWorker`` uses it
+        to report an accurate disconnected state instead of falsely publishing
+        a successful connection after a failed ``serial.Serial`` call.
+        """
+        self.disconnect()
         self.port = port
         self.baud_rate = baud_rate
 
         try:
-            self.ser = serial.Serial(port, baud_rate, timeout=timeout)
-            print("Successfully connected")
-            time.sleep(sleep_time)
+            self.ser = serial.Serial(
+                port=port,
+                baudrate=baud_rate,
+                timeout=timeout,
+                write_timeout=timeout,
+            )
+            # Many Arduino-class boards reset when the port opens. Keep this
+            # delay configurable because some native-USB devices do not need it.
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            self.ser.reset_input_buffer()
         except SerialException:
-            print(f"Could not connect to serial port {port} at baud rate {baud_rate}")
-        # try:
-        #     self.ser = serial.Serial(port, baud_rate, timeout=timeout)
-        #     print("Successfully connected")
-        #     time.sleep(sleep_time)
-        # except SerialException:    
-        #     print(f"Could not connect to serial port {port} at baud rate {baud_rate}")
-        #     try_find_port = input("Would you like to see a list of available serial ports? (y/n): ")
-        #     if try_find_port.lower() == 'y':
-        #         selected_port = select_serial_port()
-        #         if selected_port:
-        #             self.connect(selected_port, baud_rate, timeout=timeout, sleep_time=sleep_time)
-            
-    def disconnect(self):
-        """Close the serial connection if it's open"""
-        if self.ser is not None:
-            self.ser.close()
             self.ser = None
-            print("Disconnected")
+            raise
 
-    def write(self, cmd):
-        """Build message based on outbound message structure"""
-        msg_str = self._build_msg(cmd)
-        num_bytes_written = self.ser.write(msg_str)
-        return num_bytes_written
+    def disconnect(self) -> None:
+        """Close the serial connection if it is open."""
+        if self.ser is not None:
+            try:
+                if self.ser.is_open:
+                    self.ser.close()
+            finally:
+                self.ser = None
 
-    # def read(self, num_bytes="default", timeout=1):
-    #     num_bytes = self.inbound_structure['msg_size'] if num_bytes == "default" else num_bytes
-    #     start_time = time.time()
-    #     while self.ser.in_waiting < num_bytes:
-    #         if time.time() - start_time > timeout:
-    #             raise TimeoutError("Timeout while waiting for data")
+    def _require_connection(self) -> serial.Serial:
+        if not self.is_connected:
+            raise ConnectionError("Serial port is not connected")
+        assert self.ser is not None
+        return self.ser
 
-    #         time.sleep(0.01)
-    #     # Read in message and decode using specified encoding for inbound msgs
-    #     data = self.ser.readline(num_bytes)
-    #     data = data.decode(self.inbound_structure['encoding']).strip("\r\n")
+    def write(self, cmd: Any) -> int:
+        """Frame and transmit one command, returning bytes written."""
+        ser = self._require_connection()
+        payload = self._build_msg(cmd)
+        count = ser.write(payload)
+        ser.flush()
+        return count
 
-        # Parse message based on start and end characters and delimiters
-        # print(data)
+    def read(self, timeout: float | None = 1.0) -> str:
+        """Read one newline-terminated response.
 
-    def read(self, timeout=1):
-        start_time = time.time()
-        while self.ser.in_waiting < 0:
-            if (time.time() - start_time) > timeout:
-                raise TimeoutError("Timeout waiting for data")
-            time.sleep(0.01) # Prevent cpu spasmzs
+        ``pyserial.readline``/``read_until`` already implements the timeout we
+        need, so there is no separate polling loop. A missing line is reported
+        as ``TimeoutError`` rather than an ambiguous empty string.
+        """
+        ser = self._require_connection()
+        previous_timeout = ser.timeout
+        if timeout is not None:
+            ser.timeout = timeout
+        try:
+            data = ser.read_until(b"\n")
+        finally:
+            ser.timeout = previous_timeout
 
-        data = self.ser.read_until()
-        return data.decode(self.inbound_structure['encoding']).strip("\r\n")
-            
+        if not data:
+            raise TimeoutError("Timeout waiting for serial data")
+        return data.decode(self.inbound_structure["encoding"], errors="replace").strip("\r\n")
 
-    def _build_msg(self, msg):
-        """Use outbound message structure to package message"""
-        packaged_msg = ""
-        
-        # Add start character if it is not None
+    def _build_msg(self, msg: Any) -> bytes:
+        """Package a command using the configured outbound framing."""
+        pieces: list[str] = []
         if self.outbound_structure["start_character"] is not None:
-            packaged_msg +=  self.outbound_structure["start_character"]
-        
-        # Add main body of msg
-        packaged_msg += str(msg)
-
-        # Add end character if it is not None
+            pieces.append(str(self.outbound_structure["start_character"]))
+        pieces.append(str(msg))
         if self.outbound_structure["end_character"] is not None:
-            packaged_msg += self.outbound_structure["end_character"]
+            pieces.append(str(self.outbound_structure["end_character"]))
+        return "".join(pieces).encode(self.outbound_structure["encoding"])
 
-        # Encode and return packaged message 
-        return packaged_msg.encode(self.outbound_structure['encoding'])
-
-    def configure_msg_structure(self, msg_dir, **kwargs):
-        config_dict = self.inbound_structure if (msg_dir == 'inbound') else self.outbound_structure
-        # Loop through kwaargs, if any match dict entries, update values
+    def configure_msg_structure(self, msg_dir: str, **kwargs: Any) -> None:
+        """Update inbound or outbound framing settings."""
+        if msg_dir not in {"inbound", "outbound"}:
+            raise ValueError("msg_dir must be 'inbound' or 'outbound'")
+        config_dict = self.inbound_structure if msg_dir == "inbound" else self.outbound_structure
         for key, value in kwargs.items():
-            if key in config_dict:
-                config_dict[key] = value
-            else:
-                raise Warning("Config structure key provided in invalid")
+            if key not in config_dict:
+                raise KeyError(f"Unknown message-structure key: {key}")
+            config_dict[key] = value
 
-    def load_msg_structure(self, msg_dir):
-        """Load message structure from config yaml file"""
-        pass
-
+    def load_msg_structure(self, msg_dir: str) -> None:
+        """Reserved for a future YAML-driven framing configuration."""
+        raise NotImplementedError("Message-structure loading from YAML is not implemented")
 
 
 if __name__ == "__main__":
-    s = SerialCommunicator()
-    s.configure_msg_structure('outbound', msg_size=3, start_character='<', end_character='>')
-    
-    # try to connect to an arduino
-    test_msg = "1, 1"
-    s.connect("COM3", 250000, sleep_time=0.5)
-
-
-    # Send test message
-    s.write("1,1")
-    # time.sleep(0.5)
-
-    # Try to read response
-    s.read(timeout=2, num_bytes=3)
-
-
-
-    
-
-
+    # Minimal manual smoke test. Adjust COM port before use.
+    communicator = SerialCommunicator()
+    communicator.configure_msg_structure("outbound", start_character="<", end_character=">")
+    try:
+        communicator.connect("COM3", 9600, timeout=0.5, sleep_time=0.5)
+        communicator.write("0,1")
+        print(communicator.read(timeout=2.0))
+    finally:
+        communicator.disconnect()

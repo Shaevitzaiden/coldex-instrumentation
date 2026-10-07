@@ -16,10 +16,14 @@ class DemoCommunicator:
         self._last_frame = 0.0
         self._relay_states: dict[int, bool] = {}
         self._sequence = 0
+        self._states_changed = True
 
     def connect(self) -> None:
         self._connected = True
         self._started = time.monotonic()
+        # Like the real controller after a reset: every relay starts released.
+        self._relay_states = {}
+        self._states_changed = True
 
     def disconnect(self) -> None:
         self._connected = False
@@ -37,6 +41,7 @@ class DemoCommunicator:
             raise RuntimeError("Demo controller is not connected")
         if relay_number is not None:
             self._relay_states[int(relay_number)] = bool(is_active)
+            self._states_changed = True
 
     def set_valve_state(
         self,
@@ -58,6 +63,15 @@ class DemoCommunicator:
         if not self._connected:
             time.sleep(min(timeout_s, 0.01))
             return []
+        if self._states_changed:
+            # Same packet shape as PneumaticCommunicator's status report.
+            self._states_changed = False
+            return [{
+                "type": "relay_states",
+                "states": {relay: self._relay_states.get(relay, False) for relay in range(1, 25)},
+                "manual": [],
+                "faults": [],
+            }]
         now = time.monotonic()
         if now - self._last_frame < 0.05:
             time.sleep(min(timeout_s, 0.005))
