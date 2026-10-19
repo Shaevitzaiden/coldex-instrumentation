@@ -6,3 +6,4 @@
 .venv/
 __pycache__/
 recorded_sessions/
+/3d_models/mounting_hardware/dummy_parts/OldVersions
